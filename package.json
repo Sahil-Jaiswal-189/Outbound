@@ -1,0 +1,14 @@
+{
+  "name": "touch-grass-outbound",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "tabpfn": ".venv/bin/python -m uvicorn services.tabpfn_service:app --host 127.0.0.1 --port 8008"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
