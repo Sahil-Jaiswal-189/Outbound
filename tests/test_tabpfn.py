@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 from pydantic import ValidationError
@@ -53,6 +53,16 @@ class OutcomePredictorTests(unittest.TestCase):
         self.assertEqual(fit.call_args.args[0], rows)
         self.assertEqual(status["mode"], "tabpfn")
         self.assertEqual(values[0], 0.8)
+
+    def test_fitted_model_cache_obeys_container_memory_limit(self):
+        with patch.object(service, "CACHE_SIZE", 1):
+            with patch.object(service.TabPFNClassifier, "create_default_for_version", side_effect=[Mock(), Mock()]) as create:
+                service.fitted_model([{"completed": True}], "completed")
+                second, hit = service.fitted_model([{"completed": False}], "completed")
+                self.assertFalse(hit)
+                self.assertEqual(len(service.CACHE), 1)
+                self.assertEqual(list(service.CACHE.values()), [second])
+                self.assertEqual(create.call_count, 2)
 
 
 if __name__ == "__main__":

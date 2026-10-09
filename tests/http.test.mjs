@@ -31,6 +31,10 @@ test("HTTP workflow persists profiles, isolates demo rows, and records feedback 
     }
     const initial = await request("/api/bootstrap", {});
     assert.equal(initial.status, 200);
+    const health = await fetch(base + "/healthz");
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { ok: true });
+    assert.equal(health.headers.get("set-cookie"), null);
     for (const asset of ["leaflet.js", "leaflet.css", "images/marker-icon.png"]) {
       const response = await fetch(base + "/vendor/leaflet/" + asset);
       assert.equal(response.status, 200);

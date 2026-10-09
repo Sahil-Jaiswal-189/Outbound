@@ -36,41 +36,72 @@ The app binds to localhost by default; `HOST` changes the bind address. A persis
 
 ## Deploy on Render
 
-Create a **Node Web Service** from [Sahil-Jaiswal-189/Outbound](https://github.com/Sahil-Jaiswal-189/Outbound), using branch `main`. Leave **Root Directory** empty: `package.json` is at the repository root. Set **Build Command** to `npm ci --omit=dev`, **Start Command** to `npm start`, and **Health Check Path** to `/`. There is no separate frontend build.
+Deploy the **whole self-hosted stack as one Docker Web Service**: Node serves the frontend/API, Ollama runs Qwen, Python runs TabPFN, and SQLite stores history. A supervisor starts/restarts the processes and forwards their logs. Node is the only public listener; model services bind to loopback.
+
+1. Create a Web Service from [Sahil-Jaiswal-189/Outbound](https://github.com/Sahil-Jaiswal-189/Outbound), using branch `main`.
+2. Choose **Language: Docker**, not Node or Python. If an existing service uses Node, create a replacement Docker service rather than keeping `npm start` as its only process.
+3. Leave **Root Directory** empty; use Dockerfile path `./Dockerfile`.
+4. Leave the **Docker Command** override empty. The image's entrypoint starts the supervisor; there are no separate npm build/start commands to enter.
+5. Attach a persistent disk with mount path **`/var/data`**. Start with enough space for both checkpoints and history (10 GB is a planning estimate, not measured long-term usage).
+6. Set **Health Check Path** to **`/healthz`** and add your API credentials below.
+
+Node, Ollama and CPU-only Torch versions are pinned in the image. Only production npm dependencies are installed. `.dockerignore` uses an allowlist, so local `.env`, personal databases, virtual environments, model files, Git metadata and test artifacts are not sent into the image. Runtime processes run as the `outbound` user; the root entrypoint only prepares writable storage and starts the supervisor.
 
 Configure these environment variables in Render's dashboard, not in a committed `.env` file:
 
 | Variable | Value / purpose |
 | --- | --- |
-| `NODE_VERSION` | `24.21.0`; pin a supported Node version with native SQLite |
-| `NODE_ENV` | `production` |
-| `HOST` | `0.0.0.0`; required for Render to reach the server |
-| `PUBLIC_ORIGIN` | Optional custom-domain origin, e.g. `https://outbound.example.com`; otherwise Render's `RENDER_EXTERNAL_URL` is used automatically |
-| `DB_PATH` | `/var/data/outbound.db`, **only after attaching a disk at `/var/data`** |
 | `ORS_API_KEY` | Your openrouteservice key for walking routes and area labels |
 | `ELEVENLABS_API_KEY` | Your key, if enabling voice/transcription |
 | `ELEVENLABS_VOICE_ID` | Your chosen voice ID |
 | `ELEVENLABS_MODEL` | `eleven_multilingual_v2` (optional; already the default) |
 | `ELEVENLABS_STT_MODEL` | `scribe_v2` (optional; already the default) |
-| `OLLAMA_URL` | Base URL of a separately running, reachable Ollama service |
-| `OLLAMA_MODEL` | `qwen2.5:3b`; must be pulled on that Ollama service |
-| `TABPFN_URL` | Base URL of a separately running instance of `services/tabpfn_service.py` |
+| `PUBLIC_ORIGIN` | Optional custom-domain origin, e.g. `https://outbound.example.com`; otherwise Render's `RENDER_EXTERNAL_URL` is used automatically |
 
-Leave `PORT` unset: Render supplies it. Open-Meteo weather/air and public Overpass require no keys. `OVERPASS_URL` and `OVERPASS_FALLBACK_URL` are optional overrides; the defaults work without adding them. `SERPAPI_KEY` is not needed by the current recommendation pipeline. There is no implemented `TABPFN_TOKEN` authentication setting.
+The following values are already configured by Docker/the entrypoint. They can be entered explicitly for visibility but are not required dashboard entries:
+
+```dotenv
+HOST=0.0.0.0
+DATA_DIR=/var/data
+DB_PATH=/var/data/outbound.db
+OLLAMA_MODEL=qwen2.5:3b
+TABPFN_DEVICE=cpu
+TABPFN_MIN_ROWS=30
+TABPFN_CACHE_SIZE=2
+TABPFN_TIMEOUT_MS=90000
+OLLAMA_TIMEOUT_MS=60000
+```
+
+The entrypoint sets `OLLAMA_URL=http://127.0.0.1:11434` and `TABPFN_URL=http://127.0.0.1:8008` automatically and keeps both model servers internal. Do not configure external model URLs for this deployment. Leave **`PORT` and `NODE_VERSION` unset**: Render supplies the public port, and Docker selects Node. `NODE_ENV=production` is already set in the image. A ready-to-review variable list is in [deploy/render.env.example](./deploy/render.env.example).
+
+Open-Meteo weather/air and public Overpass require no keys. `OVERPASS_URL` and `OVERPASS_FALLBACK_URL` are optional overrides; the defaults work without adding them. `SERPAPI_KEY` is not needed by the current recommendation pipeline. There is no implemented `TABPFN_TOKEN` authentication setting.
 
 The configured public origin is used for same-origin write checks and secure HTTPS session cookies, even though Render forwards traffic internally over HTTP. Do not set it to localhost on Render. If you choose a custom domain, use that domain consistently: only the configured origin is allowed for browser writes.
 
-**Database persistence:** Render filesystems are ephemeral unless you attach a persistent disk. Use a paid service with a disk mounted at `/var/data` to retain SQLite history across restarts/deploys. A free demo can omit `DB_PATH` and use the default local database, but its data will be lost when the instance restarts or redeploys. Keep this SQLite deployment to one instance. [Render persistent disks](https://render.com/docs/disks).
+**Database and checkpoint persistence:** `/var/data/outbound.db` stores SQLite; `/var/data/ollama`, `/var/data/tabpfn` and `/var/data/huggingface` store model/cache files. Keep the disk when redeploying. Render filesystems are ephemeral without a disk, so both history and downloaded weights would otherwise be lost on restart/redeploy. Persistent disks require a paid service, and this SQLite deployment stays at one instance. Local history is not automatically copied to Render. [Render persistent disks](https://render.com/docs/disks).
 
-**Model services are separate:** `npm start` starts only the Node application, not Ollama or Python. A localhost URL on Render points to the Render container, **not your laptop**. Without reachable model services, the app works with explicitly reported baseline ranking and template copy; it is not doing open-model inference in that mode. `OLLAMA_URL` must support Ollama's native `/api/generate` and `/api/tags` routes, not an arbitrary OpenAI-compatible API.
+**First startup:** the app starts while a background job checks Ollama, pulls the configured Qwen model, warms it, and prefetches TabPFN's **v2 classifier checkpoint**. Cached files are reused. Failed initialization is retried every 30 seconds and emits structured `model_bootstrap` logs. Ollama cloud features are disabled. `/api/status` reports current service reachability, Qwen model availability and the initialization snapshot. `tabpfn: ready / checkpoint_cached` means weights have been downloaded, not that a user's model passed evaluation. TabPFN still needs sufficient labeled history and must beat the baseline on the chronological holdout. Until initialization succeeds, recommendations honestly report baseline/template fallbacks.
 
-For TabPFN, create a separate **Python private service** in the same Render region, with build command `pip install -r services/requirements-tabpfn.txt` and start command `python -m uvicorn services.tabpfn_service:app --host 0.0.0.0 --port 8008`. Set `TABPFN_MIN_ROWS=30` and `TABPFN_DEVICE=cpu` **on that Python service**. Set the Node service's `TABPFN_URL` to `http://<actual-private-service-hostname>:8008`. First inference needs checkpoint download access and sufficient memory; this is not included in the Node service's build. For a model-cache disk mounted at `/var/data`, set `TABPFN_MODEL_CACHE_DIR=/var/data/tabpfn` and `HF_HOME=/var/data/huggingface` on the Python service.
+`/healthz` is a fast **web-process liveness check**, not a claim that every model is ready or that inference quality is validated. This lets Render finish the web deployment while checkpoints download. Inspect `/api/status` and logs for model failures; do not infer model readiness from Render's green deployment indicator alone.
 
-Ollama also needs its own runtime with Qwen downloaded and sufficient compute/memory. Prefer private networking for both model services: the app's current model clients do not send authentication headers, and these inference endpoints must not be exposed unprotected to the public internet. [Render private networking](https://render.com/docs/private-network).
+**Compute requirements:** one container still needs enough RAM and CPU for Qwen, TabPFN and their inference overhead. An 8 GB RAM instance is a preliminary starting point for benchmarking, not a guaranteed minimum or a measured Render sizing result. Tiny/free instances are not a realistic target for this combined workload. Ollama allows one concurrent request/model and uses a 4096-token context; TabPFN has one worker, serialized ranking and a two-estimator cache limit. Cold validation can be slow on CPU. Requests have bounded, configurable model deadlines; timeout means a reported fallback, not a successful model prediction. This is a low-concurrency prototype, not a production multi-user inference service.
 
-The public app is still a prototype: it has browser workspaces, not account authentication or API rate limits. Protect access before advertising a public deployment with paid voice credentials. Hosting it also moves SQLite history to your Render server; notes sent to Qwen/TabPFN travel to whichever model service you configure.
+Weather/place/routing calls and optional ElevenLabs voice still use external APIs. Qwen, TabPFN and SQLite stay in the container; that does not make the entire outing workflow offline. Downloaded models remain subject to their respective licenses.
 
-See [Render web services](https://render.com/docs/web-services) for port binding and [Node version configuration](https://render.com/docs/node-version) for runtime pinning.
+The public app still has browser workspaces, not account authentication or API rate limits. Protect access before advertising a public deployment with paid voice credentials. Hosting it moves SQLite history from your laptop to the Render server you control.
+
+See [Render Docker deployment](https://render.com/docs/docker) and [web services](https://render.com/docs/web-services).
+
+### Run the Same Container Locally
+
+```bash
+docker build --platform linux/amd64 -t outbound .
+docker run --name outbound --env-file .env -p 127.0.0.1:5177:10000 \
+  -e PORT=10000 -e HOST=0.0.0.0 -e TABPFN_CACHE_SIZE=2 \
+  -v outbound-data:/var/data outbound
+```
+
+Open **http://localhost:5177**. The explicit port overrides the local `.env` value; the entrypoint always uses local model URLs inside the container. Stop with `docker stop outbound`. Do not also run local Ollama/Python for this container: it includes both. Apple Silicon runs this Linux/amd64 image through emulation, so timings there are not a native Render benchmark. Plain `npm start` remains a supported Node-only local workflow with separately started local model processes.
 
 ## Local Qwen
 

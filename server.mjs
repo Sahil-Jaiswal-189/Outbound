@@ -177,6 +177,10 @@ async function integrationStatus() {
     database: { engine: "sqlite", persistent: true },
     sources: { weather: "open-meteo", places: "overpass", routing: "openrouteservice", routingConfigured: Boolean(process.env.ORS_API_KEY) }
   };
+  if (process.env.BOOTSTRAP_STATUS_PATH) {
+    try { status.startup = JSON.parse(readFileSync(process.env.BOOTSTRAP_STATUS_PATH, "utf8")); }
+    catch { status.startup = { models: { ollama: { status: "pending" }, tabpfn: { status: "pending" } } }; }
+  }
 
   try {
     const controller = new AbortController();
@@ -184,6 +188,11 @@ async function integrationStatus() {
     const response = await fetch(`${ollamaUrl}/api/tags`, { signal: controller.signal });
     clearTimeout(timeout);
     status.ollama.reachable = response.ok;
+    if (response.ok) {
+      const data = await response.json();
+      const model = status.ollama.model.includes(":") ? status.ollama.model : status.ollama.model + ":latest";
+      status.ollama.modelAvailable = data.models?.some(item => item.name === model) || false;
+    }
   } catch {
     status.ollama.reachable = false;
   }
@@ -269,6 +278,7 @@ function fallbackReward({ profile = {}, attempt = {} }) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    if (req.method === "GET" && url.pathname === "/healthz") return sendJson(res, 200, { ok: true });
     if (url.pathname.startsWith("/api/")) {
       res.setHeader("cache-control", "no-store");
       const expectedOrigin = publicOrigin || `http://${req.headers.host}`;

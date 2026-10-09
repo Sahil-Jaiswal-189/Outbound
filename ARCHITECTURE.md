@@ -26,6 +26,14 @@ flowchart TD
 
 Node owns storage, source routing, candidate eligibility and final selection. TabPFN estimates outcomes. Qwen supplies language; it cannot change the saved activity facts. Neither model is a database.
 
+## Single-Service Deployment
+
+The Docker image packages Node, CPU Ollama/Qwen and Python/TabPFN in one service. `deploy/entrypoint.py` prepares writable disk/cache directories and starts Supervisor as PID 1. All application processes run as `outbound`; Supervisor restarts long-running workers, forwards output and terminates their process groups on shutdown. Only Node binds to `0.0.0.0:$PORT`; Ollama binds to `127.0.0.1:11434` and Uvicorn to `127.0.0.1:8008`. No external inference service is needed.
+
+`deploy/bootstrap.py` is a supervised background initialization job. It pulls/warms the configured Qwen model and runs `deploy/prefetch_tabpfn.py` to cache the exact v2 classifier used by the ranker. A successful checkpoint download is not a successful holdout evaluation. Failed initialization retries; structured status is atomically written to `/tmp/outbound-models.json` and included in `/api/status`. That file is an initialization snapshot; reachability checks describe current model services. The separate `/healthz` checks web liveness without waiting on model initialization.
+
+One persistent mount at `/var/data` holds SQLite and both model caches. `.dockerignore` is an allowlist that excludes local secrets, personal databases, models and development artifacts. CPU-only Torch avoids unused CUDA packages; Ollama's GPU payload directories are omitted from the final image. One Ollama request/model, a bounded context, one serialized Python ranker and a configurable fitted-estimator cache limit reduce concurrent memory pressure. Model request deadlines can be raised within a two-minute bound for CPU inference. Actual peak RAM/latency must still be benchmarked on the target instance.
+
 ## Persistence
 
 `backend/store.mjs` creates a versioned SQLite schema using Node's native driver. WAL, foreign keys and a busy timeout are enabled.
@@ -40,7 +48,7 @@ Node owns storage, source routing, candidate eligibility and final selection. Ta
 
 Flexible documents use JSON columns; queryable outcome fields have dedicated columns. Each table is scoped by workspace except the shared provider cache. Demo workspace IDs are derived server-side from the session, never accepted from the caller.
 
-A random persistent HttpOnly, SameSite=Strict cookie is the local workspace capability. API responses are not cached, and cross-origin writes are rejected. This is not production authentication. The server binds to localhost; a public deployment needs real accounts and operational controls.
+A random persistent HttpOnly, SameSite=Strict cookie is the local workspace capability. API responses are not cached, and cross-origin writes are rejected. HTTPS deployments use secure cookies and the configured public origin (Render's URL by default). This is not production authentication. Local Node defaults to localhost; Docker exposes Node and requires operational access controls for public use.
 
 The bootstrap endpoint imports valid legacy browser attempts once, in a transaction. Later refreshes read SQLite instead of reimporting stale browser state. Feedback uses the saved started attempt, so a caller cannot replace its quest or context. Feedback retries update the same row.
 

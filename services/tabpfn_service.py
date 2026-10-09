@@ -32,6 +32,7 @@ FEATURES = ["minutes_available", "mood_before", "energy_before", "goal_type", "l
             "physical_effort", "social_effort"]
 NUMERIC = {"minutes_available", "temperature", "rain_probability", "quest_duration", "travel_minutes"}
 MIN_ROWS = max(10, int(os.environ.get("TABPFN_MIN_ROWS", "30")))
+CACHE_SIZE = min(8, max(1, int(os.environ.get("TABPFN_CACHE_SIZE", "4"))))
 CACHE: OrderedDict[str, Any] = OrderedDict()
 LOCK = threading.Lock()
 LAST_STATUS: dict[str, Any] = {"mode": "not_run"}
@@ -46,7 +47,8 @@ class RankRequest(BaseModel):
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True, "tabpfn_available": TabPFNClassifier is not None, "import_error": IMPORT_ERROR,
-            "checkpoint": "v2", "min_rows": MIN_ROWS, "cached_estimators": len(CACHE), "last_prediction": LAST_STATUS}
+            "checkpoint": "v2", "min_rows": MIN_ROWS, "cache_limit": CACHE_SIZE,
+            "cached_estimators": len(CACHE), "last_prediction": LAST_STATUS}
 
 
 @app.post("/rank")
@@ -133,12 +135,12 @@ def fitted_model(rows: list[dict[str, Any]], target: str):
     model = CACHE.get(fingerprint)
     cache_hit = model is not None
     if model is None:
+        while len(CACHE) >= CACHE_SIZE:
+            CACHE.popitem(last=False)
         model = TabPFNClassifier.create_default_for_version(ModelVersion.V2,
                     device=os.environ.get("TABPFN_DEVICE", "cpu"), n_estimators=2)
         model.fit(frame(rows), np.array([int(row[target]) for row in rows]))
         CACHE[fingerprint] = model
-        if len(CACHE) > 4:
-            CACHE.popitem(last=False)
     else:
         CACHE.move_to_end(fingerprint)
     return model, cache_hit
