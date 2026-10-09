@@ -1,6 +1,14 @@
-# Touch Grass: Outbound
+# Outbound
+
+**Touch Grass: a small quest, a real place, a reason to put the screen away.**
 
 Outbound recommends small real-world activities instead of a feed. Set your interests, goals, dislikes and available time, choose one of three quests, go outside, and return with a short reflection.
+
+[Live demo](https://outbound-taqn.onrender.com/) | [Challenge submission draft](./docs/SUBMISSION.md) | [Detailed architecture](./ARCHITECTURE.md)
+
+![Outbound's desktop interface](./docs/assets/home.png)
+
+Screenshots use automated demo data. Named places and source readings in the visual fixtures are illustrative, not a record of a real outdoor visit.
 
 ## Features
 
@@ -13,6 +21,23 @@ Outbound recommends small real-world activities instead of a feed. Set your inte
 - Field timer, badges, streaks, typed notes and optional ElevenLabs voice/transcription.
 - A Recommendation lab tab with isolated synthetic data, candidate scores, validation results, source status and structured logs.
 - Honest baseline/template fallbacks when data, models or network services are unavailable.
+
+## Architecture at a Glance
+
+![Outbound architecture: one self-hosted container, structured external facts and a feedback loop](./docs/assets/architecture.png)
+
+| Component | Responsibility |
+| --- | --- |
+| Browser: plain JavaScript, Lucide, Leaflet | Profile/context controls, three-quest deck, field timer, reflections and badges |
+| Node HTTP API | Validate input, discover/filter candidates, combine scores, select the slate and persist authoritative facts |
+| SQLite | Profiles, source cache, saved runs, attempts and structured events; never model weights |
+| Python / TabPFN v2 | Separate probabilities for completion and enjoyment from labeled tabular history |
+| Constrained epsilon-greedy policy | Diversity, recent-offer avoidance and limited exploration after feasibility checks |
+| Ollama / Qwen2.5:3b | Friendly quest titles, reflection prompts and optional reward copy, not routing or selection |
+| Open-Meteo / Overpass / openrouteservice | Weather/AQI, mapped places, and walking estimates respectively |
+| Optional ElevenLabs | Quest/reward speech and dictated notes; not required for recommendations |
+
+The flow is **context + history -> structured facts -> feasible catalog/place matches -> outcome predictions -> constrained selection -> Qwen wording -> saved quests -> feedback**. A user-selected catalog activity still passes the same feasibility checks. TabPFN and the selection policy are different components; new feedback conditions the predictor but does not fine-tune either model's weights.
 
 ## Prerequisites
 
@@ -163,7 +188,7 @@ Selecting a pin or sharing GPS resolves its reported neighbourhood/locality thro
 
 Weather is cached for 10 minutes, air quality for 30 minutes, places/routes for 24 hours, and geocoding for seven days. Provider calls have deadlines and independent fallbacks. Opening hours and accessibility remain unverified. Severe modeled outdoor conditions suppress quests rather than forcing an outing.
 
-Overpass tries the standard public endpoint, then Private.coffee on a network/server failure (at most two requests, ten seconds each). Rate-limit responses are not retried. Concurrent duplicate queries share a request; failures have a 30-second cooldown. Set `OVERPASS_URL` to self-host; custom endpoints have no automatic public fallback unless `OVERPASS_FALLBACK_URL` is explicitly set. An empty fallback variable disables failover. Missing routing credentials are shown independently of place-fetch failures.
+Overpass tries the standard public endpoint, then Private.coffee on a network/server failure (at most two requests, **35 seconds each**). Queries allow **15 seconds of server execution**; the longer HTTP deadline leaves room for queueing and network delay. Place discovery can therefore take up to about 70 seconds when both endpoints are slow, before routing and model inference. Rate-limit responses are not retried. Concurrent duplicate queries share a request; failures have a 30-second per-query cooldown. Set `OVERPASS_URL` to self-host; custom endpoints have no automatic public fallback unless `OVERPASS_FALLBACK_URL` is explicitly set. An empty fallback variable disables failover. Missing routing credentials are shown independently of place-fetch failures. Only unexpired cached facts are reused: there is no stale-place fallback or cross-area cache reuse in this version.
 
 The legacy SerpAPI endpoint remains available when configured, but it is **not called by the recommendation pipeline**.
 
@@ -227,6 +252,36 @@ npm run test:browser
 
 Backend tests cover persistence, ownership, missing labels, demo isolation, source caching, constraints and exploration. Python tests cover chronological evaluation and truthful fallbacks. Browser tests cover desktop/mobile seeding, recommendations and saved feedback without spending voice API credits.
 
+The current local check runs **30 backend, 13 Python and 26 desktop/mobile browser tests**. A passing synthetic evaluation proves that the pipeline executes, not that users become more active.
+
+For a real single-container smoke check (Docker running, internet on first model download, sufficient RAM):
+
+```bash
+docker build --platform linux/amd64 -t outbound:single-service-verified .
+node tests/container-smoke.mjs outbound:single-service-verified
+```
+
+This creates disposable containers and uses the separate `outbound-single-service-test` volume, never the personal database or `.env` credentials. It checks real Qwen generation, TabPFN evaluation, worker restart, internal model ports, a custom public port, graceful shutdown and persistence across a fresh-container redeploy. Test containers are removed; public model caches and synthetic test data remain in that volume for repeat runs. Timings under Apple Silicon emulation are not Render benchmarks.
+
+To rebuild the publication figures from the browser test artifacts:
+
+```bash
+npm run test:browser
+node scripts/build-post-assets.mjs
+```
+
+The script copies verified UI screenshots and renders the architecture SVG and mobile workflow figure into `docs/assets/`; it does not alter application data.
+
+## Open Components and Limits
+
+Qwen runs through the open-source Ollama runtime; TabPFN inference runs in a local Python service, with no hosted LLM or predictor API required. In laptop mode, SQLite history and inference inputs stay on the laptop. In Docker/Render mode, they reside on that server, not on a third-party inference provider.
+
+**Open weights are not the same as unrestricted open-source licensing.** Qwen2.5-3B-Instruct uses the [Qwen Research license](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct); TabPFN's v2 checkpoint uses the [Prior Labs License with attribution requirements](https://huggingface.co/Prior-Labs/TabPFN-v2-clf). Respect checkpoint-specific terms. This repository currently has no application `LICENSE` file, so public source availability is not a grant of unrestricted reuse.
+
+Fresh weather, place queries, routes and map tiles require internet. Optional ElevenLabs is a hosted, proprietary service and may incur charges. Coordinates are sent to location providers; speech text/audio is sent to ElevenLabs when used. Local inference avoids per-request hosted-model fees, not hardware, electricity, hosting or optional API costs. The prototype has no account authentication, API rate limits or prospective evidence of behavior change.
+
+Gemma, Tinker, MongoDB Atlas and Tiger Data are not implemented. SerpAPI remains an optional legacy endpoint, not part of quest recommendations. Background music is not implemented. We use deterministic source adapters rather than an autonomous tool-calling agent.
+
 ## Visual Credits
 
 The local park-path photograph is by [Tina Devidze on Unsplash](https://unsplash.com/photos/a-path-winds-through-a-sunny-green-park-lh_MesNhkbI), used under the [Unsplash License](https://unsplash.com/license). Icons are Lucide; the interactive map uses Leaflet with visible OpenStreetMap attribution.
@@ -252,6 +307,15 @@ tests/
   http.test.mjs
   test_tabpfn.py
   browser/
+  container-smoke.mjs     Real single-container inference and redeploy checks
+deploy/                  Supervisor, model bootstrap, health check and Render env reference
+docs/
+  SUBMISSION.md          Visual DEV submission draft
+  PUBLISHING.md          Image/demo/session publication checklist
+  assets/                Architecture source and generated screenshots
+scripts/
+  build-post-assets.mjs   Rebuild publication figures from browser test artifacts
+Dockerfile               Node + CPU Ollama + Python/TabPFN runtime
 server.mjs               HTTP API and local session
 ARCHITECTURE.md
 ```

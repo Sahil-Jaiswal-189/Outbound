@@ -196,6 +196,29 @@ test("Overpass has bounded failover, cache reuse, request coalescing and a failu
   } finally { store.close(); }
 });
 
+test("Overpass allows queueing time on both endpoints with a bounded query execution limit", async t => {
+  const store = createStore(":memory:", { consoleLogs: false });
+  const deadlines = [], queries = [];
+  t.mock.method(AbortSignal, "timeout", milliseconds => {
+    deadlines.push(milliseconds);
+    return new AbortController().signal;
+  });
+  try {
+    const sources = createSources(store, { env: {}, fetchImpl: async (url, options) => {
+      queries.push(new URLSearchParams(options.body).get("data"));
+      if (queries.length === 1) throw new DOMException("deadline", "TimeoutError");
+      return Response.json({ elements: [{ type: "node", id: 1, lat: 12, lon: 77,
+        tags: { name: "Neighbourhood Garden", leisure: "garden" } }] });
+    } });
+    const result = await sources.places({ latitude: 12, longitude: 77 }, 200);
+    assert.equal(result.status, "live");
+    assert.equal(result.data.places[0].name, "Neighbourhood Garden");
+    assert.deepEqual(deadlines, [35000, 35000]);
+    assert.equal(queries.length, 2);
+    assert.ok(queries.every(query => query.startsWith("[out:json][timeout:15];")));
+  } finally { store.close(); }
+});
+
 test("routing diagnoses missing configuration independently of failed place discovery", async () => {
   const store = createStore(":memory:", { consoleLogs: false });
   try {

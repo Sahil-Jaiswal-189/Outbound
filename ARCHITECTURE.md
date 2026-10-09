@@ -1,5 +1,9 @@
 # Architecture
 
+![Outbound runtime and recommendation architecture](./docs/assets/architecture.png)
+
+The editable visual source is [docs/assets/architecture.svg](./docs/assets/architecture.svg).
+
 ## Recommendation Flow
 
 ```mermaid
@@ -65,7 +69,7 @@ The backend routes sources deterministically rather than letting the LLM choose 
 
 Weather uses current conditions and hourly values overlapping the outing. Air quality comes from modeled AQI. Place queries exclude explicitly private/no-access/no-foot entries. Routing uses a pedestrian origin-destination-origin request. Duration includes travel, activity and a small return buffer.
 
-Provider requests have five-second deadlines, with up to two ten-second attempts for the shared Overpass service. The standard public instance can fail over to Private.coffee on network/server failures; 4xx responses are not retried. Custom endpoints have no automatic public fallback. Concurrent identical queries share a promise; failed place queries have a 30-second retry cooldown. Cache TTLs are weather 10m, air 30m, places/routes 24h and geocoding 7d. Source statuses are `live`, `cached`, `skipped`, `not_configured`, or `unavailable`. Failed requests are not cached as valid data.
+Provider requests generally have five-second deadlines. Air quality may retry once with an eight-second deadline. Overpass allows up to two 35-second HTTP attempts, with a 15-second server query execution limit to leave room for queueing and transfer. Its source phase can take up to about 70 seconds before route and model requests. The standard public instance can fail over to Private.coffee on network/server failures; 4xx responses are not retried. Custom endpoints have no automatic public fallback. Concurrent identical queries share a promise; failed place queries have a 30-second per-query retry cooldown. Cache TTLs are weather 10m, air 30m, places/routes 24h and geocoding 7d. Source statuses are `live`, `cached`, `skipped`, `not_configured`, or `unavailable`. Failed requests are not cached as valid data. Expired cache entries are removed; stale-place fallback, cross-area reuse and endpoint-wide exponential cooldowns are not implemented.
 
 OSM coverage, access tags, route endpoints and opening hours may be incomplete. Estimates do not establish real-time access or safety. Thunderstorms, heavy modeled precipitation, strong wind, extreme apparent heat and very poor AQI suppress candidates. These checks are not a comprehensive hazard assessment.
 
@@ -125,7 +129,7 @@ Once enough history exists, the earlier rows train an evaluation estimator and t
 
 This small holdout is an initial deployment gate, not a reliable estimate of long-term performance. Repeated inspection can overfit the gate; larger prospective evaluation is needed as real feedback grows.
 
-Response mode is `baseline`, `hybrid`, or `tabpfn`, with per-target label counts, reasons and evaluation. Import success or a token alone never counts as successful inference. Startup/import may take time; first fit may download weights. Node falls back after a 12-second prediction deadline.
+Response mode is `baseline`, `hybrid`, or `tabpfn`, with per-target label counts, reasons and evaluation. Import success or a token alone never counts as successful inference. Startup/import may take time; first fit may download weights. The Node prediction deadline defaults to 12 seconds locally and 90 seconds in Docker; `TABPFN_TIMEOUT_MS` configures it within a two-minute bound. Qwen quest wording similarly defaults to 12 seconds locally and 60 seconds in Docker through `OLLAMA_TIMEOUT_MS`. Reward wording has a separate short deadline and immediate template fallback.
 
 ## Qwen and Voice
 

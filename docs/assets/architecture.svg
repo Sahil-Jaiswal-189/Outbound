@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1180" viewBox="0 0 1680 1180" role="img" aria-labelledby="title description">
+  <title id="title">Outbound architecture</title>
+  <desc id="description">A browser sends context to Node. In one self-hosted container, Node stores SQLite history, asks Python TabPFN for outcome predictions, selects feasible quests, and uses Ollama Qwen for wording. External sources supply weather, places and routes. Optional ElevenLabs supplies voice. Reflections return to SQLite, not model fine-tuning.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#53716c"/></marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #183b33; letter-spacing: 0; }
+      .heading { font-size: 42px; font-weight: 700; }
+      .subtitle { font-size: 23px; fill: #526762; }
+      .section { font-size: 24px; font-weight: 700; }
+      .name { font-size: 23px; font-weight: 700; }
+      .body { font-size: 20px; fill: #405d55; }
+      .small { font-size: 18px; fill: #526762; }
+      .line { fill: none; stroke: #53716c; stroke-width: 2.5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1680" height="1180" fill="#f8fbfa"/>
+  <text x="64" y="79" class="heading">Outbound</text>
+  <text x="64" y="120" class="subtitle">Local models. Structured facts. Inspectable decisions. Then the screen can go away.</text>
+
+  <g>
+    <rect x="64" y="164" width="272" height="130" rx="8" fill="#e4f3eb" stroke="#bfd9c9"/>
+    <text x="88" y="205" class="name">1. A moment</text>
+    <text x="88" y="239" class="body">Time, energy, interests</text>
+    <text x="88" y="269" class="body">A goal and starting point</text>
+    <rect x="376" y="164" width="272" height="130" rx="8" fill="#e8f3f7" stroke="#c0dce7"/>
+    <text x="400" y="205" class="name">2. Ground</text>
+    <text x="400" y="239" class="body">Facts + 120 activities</text>
+    <text x="400" y="269" class="body">Route and feasibility gates</text>
+    <rect x="688" y="164" width="272" height="130" rx="8" fill="#fff5db" stroke="#ead99e"/>
+    <text x="712" y="205" class="name">3. Predict</text>
+    <text x="712" y="239" class="body">Completion + enjoyment</text>
+    <text x="712" y="269" class="body">TabPFN or honest baseline</text>
+    <rect x="1000" y="164" width="272" height="130" rx="8" fill="#fdebf0" stroke="#edc6d3"/>
+    <text x="1024" y="205" class="name">4. Choose</text>
+    <text x="1024" y="239" class="body">Goals, novelty, diversity</text>
+    <text x="1024" y="269" class="body">Limited exploration</text>
+    <rect x="1312" y="164" width="304" height="130" rx="8" fill="#e4f3eb" stroke="#bfd9c9"/>
+    <text x="1336" y="205" class="name">5. Encourage</text>
+    <text x="1336" y="239" class="body">Qwen wording, fixed facts</text>
+    <text x="1336" y="269" class="body">Three quests, one choice</text>
+    <path class="line" d="M336 228 H372"/><path class="line" d="M648 228 H684"/>
+    <path class="line" d="M960 228 H996"/><path class="line" d="M1272 228 H1308"/>
+  </g>
+
+  <rect x="64" y="344" width="1176" height="558" rx="8" fill="#ffffff" stroke="#b8d3c7" stroke-width="2"/>
+  <text x="88" y="386" class="section">ONE SELF-HOSTED CONTAINER</text>
+  <text x="88" y="420" class="small">Supervisor manages workers | Only Node exposes the public port | Persistent disk: /var/data</text>
+
+  <rect x="88" y="454" width="310" height="160" rx="8" fill="#e4f3eb" stroke="#bfd9c9"/>
+  <text x="112" y="497" class="name">SQLite</text>
+  <text x="112" y="534" class="body">Profiles, attempts, feedback</text>
+  <text x="112" y="564" class="body">Saved runs, traces, cache</text>
+  <text x="112" y="594" class="small">Model weights live separately</text>
+
+  <rect x="444" y="454" width="360" height="160" rx="8" fill="#e8f3f7" stroke="#c0dce7"/>
+  <text x="468" y="497" class="name">Node HTTP API</text>
+  <text x="468" y="534" class="body">Storage + specialist adapters</text>
+  <text x="468" y="564" class="body">Filters + slate selection</text>
+  <text x="468" y="594" class="small">Browser UI served here too</text>
+
+  <rect x="850" y="454" width="366" height="160" rx="8" fill="#e4f3eb" stroke="#bfd9c9"/>
+  <text x="874" y="497" class="name">Ollama / Qwen2.5:3b</text>
+  <text x="874" y="534" class="body">Quest and reflection wording</text>
+  <text x="874" y="564" class="body">Not routing or quest selection</text>
+  <text x="874" y="594" class="small">Internal: 127.0.0.1:11434</text>
+
+  <rect x="88" y="712" width="310" height="146" rx="8" fill="#fdebf0" stroke="#edc6d3"/>
+  <text x="112" y="755" class="name">Recommendation lab</text>
+  <text x="112" y="793" class="body">Inspect decisions + history</text>
+  <text x="112" y="825" class="body">Isolated synthetic workspace</text>
+
+  <rect x="444" y="712" width="360" height="146" rx="8" fill="#fff5db" stroke="#ead99e"/>
+  <text x="468" y="755" class="name">Python / TabPFN v2</text>
+  <text x="468" y="793" class="body">13 pre-outing features</text>
+  <text x="468" y="825" class="small">Internal: 127.0.0.1:8008</text>
+  <text x="850" y="749" class="name">Validation before promotion</text>
+  <text x="850" y="787" class="body">Chronological holdout vs baseline</text>
+  <text x="850" y="819" class="body">Missing enjoyment stays missing</text>
+  <text x="850" y="851" class="small">No fine-tuning after each attempt</text>
+
+  <path class="line" marker-start="url(#arrow)" d="M403 525 H438"/>
+  <path class="line" marker-start="url(#arrow)" d="M809 525 H844"/>
+  <path class="line" marker-start="url(#arrow)" d="M624 620 V706"/>
+  <text x="645" y="678" class="small">History + eligible candidates</text>
+  <path class="line" d="M243 620 V706"/>
+  <text x="88" y="678" class="small">Saved evidence</text>
+  <path class="line" d="M804 575 H820 V643 H1266"/>
+  <text x="889" y="634" class="small">Bounded external API calls</text>
+
+  <rect x="1272" y="344" width="344" height="558" rx="8" fill="#eef4f2" stroke="#c9d9d2"/>
+  <text x="1296" y="386" class="section">EXTERNAL SERVICES</text>
+  <text x="1296" y="420" class="small">Internet + provider terms apply</text>
+  <rect x="1296" y="454" width="296" height="86" rx="8" fill="#fff"/>
+  <text x="1316" y="489" class="name">Open-Meteo</text>
+  <text x="1316" y="521" class="body">Weather + modeled AQI</text>
+  <rect x="1296" y="556" width="296" height="86" rx="8" fill="#fff"/>
+  <text x="1316" y="591" class="name">OSM / Overpass</text>
+  <text x="1316" y="623" class="body">Mapped named places</text>
+  <rect x="1296" y="658" width="296" height="86" rx="8" fill="#fff"/>
+  <text x="1316" y="693" class="name">openrouteservice</text>
+  <text x="1316" y="725" class="body">Walking routes + area labels</text>
+  <rect x="1296" y="760" width="296" height="98" rx="8" fill="#fff"/>
+  <text x="1316" y="795" class="name">ElevenLabs (optional)</text>
+  <text x="1316" y="827" class="body">Hosted speech + transcription</text>
+
+  <rect x="64" y="948" width="1552" height="176" rx="8" fill="#183b33"/>
+  <text x="88" y="992" style="fill:#b9e7c9;font-size:22px;font-weight:700">THE OUTDOOR LOOP</text>
+  <text x="88" y="1040" style="fill:#fff;font-size:32px;font-weight:700">Choose a quest. Put the screen away. Return with a reflection.</text>
+  <text x="88" y="1087" style="fill:#cfdfd9;font-size:22px">Feedback returns to SQLite for future context. Partial attempts count. The goal is participation, not time in the app.</text>
+</svg>

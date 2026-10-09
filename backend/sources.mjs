@@ -120,7 +120,7 @@ export function createSources(store, { fetchImpl = fetch, env = process.env } = 
     if (failed?.until > Date.now()) return { ...failed.result, retryAfterSeconds: Math.ceil((failed.until - Date.now()) / 1000) };
     const response = await cached("overpass", key, 24 * 3600_000, async () => {
       const { latitude, longitude } = location;
-      const query = `[out:json][timeout:8];(nwr(around:${radius},${latitude},${longitude})[leisure~"^(park|garden|recreation_ground|pitch)$"];nwr(around:${radius},${latitude},${longitude})[shop~"^(supermarket|convenience|greengrocer)$"];nwr(around:${radius},${latitude},${longitude})[amenity~"^(library|marketplace|community_centre)$"];);out body center 60;`;
+      const query = `[out:json][timeout:15];(nwr(around:${radius},${latitude},${longitude})[leisure~"^(park|garden|recreation_ground|pitch)$"];nwr(around:${radius},${latitude},${longitude})[shop~"^(supermarket|convenience|greengrocer)$"];nwr(around:${radius},${latitude},${longitude})[amenity~"^(library|marketplace|community_centre)$"];);out body center 60;`;
       // Custom/self-hosted endpoints stay private unless a fallback is explicitly configured.
       const customEndpoint = env.OVERPASS_URL && env.OVERPASS_URL !== "https://overpass-api.de/api/interpreter";
       const fallback = env.OVERPASS_FALLBACK_URL ?? (customEndpoint ? "" : "https://overpass.private.coffee/api/interpreter");
@@ -132,7 +132,7 @@ export function createSources(store, { fetchImpl = fetch, env = process.env } = 
         try {
           result = await request(endpoint, {
             method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ data: query }).toString()
-          }, 10000);
+          }, 35000);
           if (!Array.isArray(result.elements) || result.remark) throw new Error("invalid_places_response");
           attempts.push({ server: new URL(endpoint).hostname, status: "live", elapsedMs: Date.now() - started });
           break;
