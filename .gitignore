@@ -14,3 +14,10 @@ __pycache__/
 dist/
 build/
 coverage/
+
+# Local personal data, SQLite journals, and browser test artifacts
+data/
+*.db
+*.db-wal
+*.db-shm
+test-results/

@@ -3,11 +3,34 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { createStore, inputError } from "./backend/store.mjs";
+import { createSources, validateContext } from "./backend/sources.mjs";
+import { createRecommender } from "./backend/recommender.mjs";
+import { ACTIVITY_CATALOG } from "./backend/catalog.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 loadDotEnv();
 const publicDir = join(root, "public");
 const port = Number(process.env.PORT || 5177);
+const host = process.env.HOST || "127.0.0.1";
+const externalUrl = process.env.PUBLIC_ORIGIN || process.env.RENDER_EXTERNAL_URL;
+const publicOrigin = externalUrl ? new URL(externalUrl).origin : "";
+const store = createStore(process.env.DB_PATH || join(root, "data", "outbound.db"));
+const sources = createSources(store);
+const recommender = createRecommender(store, sources);
+
+function session(req, res) {
+  const cookie = (req.headers.cookie || "").split(";").map(item => item.trim()).find(item => item.startsWith("outbound_session="));
+  let id = cookie?.slice("outbound_session=".length);
+  if (!/^[a-f0-9-]{36}$/.test(id || "")) {
+    id = randomUUID();
+    const secure = publicOrigin.startsWith("https://") || req.socket.encrypted ? "; Secure" : "";
+    res.setHeader("set-cookie", `outbound_session=${id}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000${secure}`);
+  }
+  store.profile(id);
+  return id;
+}
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -15,6 +38,8 @@ const mimeTypes = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
   ".ico": "image/x-icon",
   ".mp3": "audio/mpeg",
   ".wav": "audio/wav",
@@ -47,131 +72,21 @@ function sendJson(res, status, payload) {
 
 async function readJson(req) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let bytes = 0;
+  for await (const chunk of req) {
+    bytes += chunk.length;
+    if (bytes > 2_000_000) throw Object.assign(new Error("Request body too large."), { status: 413 });
+    chunks.push(chunk);
+  }
   const body = Buffer.concat(chunks).toString("utf8");
-  return body ? JSON.parse(body) : {};
-}
-
-function extractJson(text) {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) return null;
   try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
+    const value = body ? JSON.parse(body) : {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Expected object");
+    return value;
   }
+  catch { throw inputError("Invalid JSON."); }
 }
 
-function fallbackQuests({ profile = {}, context = {}, memories = [] }) {
-  const minutes = Number(context.minutes || 15);
-  const mood = context.mood || "restless";
-  const goal = context.goal || profile.goals?.[0] || "reset";
-  const hates = (profile.hates || []).join(", ") || "doomscrolling";
-  const hobby = profile.hobbies?.[0] || "noticing small details";
-  const reminder = profile.reminders?.[0] || "keep it light";
-  const memoryLine = memories[0]?.text ? `Remember: ${memories[0].text}` : reminder;
-  const liveHint = context.liveContext && !String(context.liveContext).includes("off.") ? context.liveContext : "";
-
-  const easyDuration = Math.max(5, Math.min(minutes, 12));
-  const usefulDuration = Math.max(8, Math.min(minutes, 20));
-  const stretchDuration = Math.max(12, Math.min(minutes, 35));
-
-  return [
-    {
-      lane: "Easy Win",
-      title: "Two-Block Reset",
-      quest_type: "movement",
-      duration: easyDuration,
-      physical_effort: "low",
-      social_effort: "none",
-      why: `Built for a ${mood} moment: simple movement before the feed can win.`,
-      steps: [
-        `Walk outside for ${easyDuration} minutes with no destination pressure.`,
-        liveHint ? "Use the current outdoor conditions as part of the quest." : "Find three signs that the day is still happening without you refreshing it.",
-        "Come back with one sentence."
-      ],
-      field_prompt: "What did you notice that you would have missed indoors?",
-      prep: [reminder]
-    },
-    {
-      lane: "Useful Quest",
-      title: "Future-You Errand",
-      quest_type: "errand",
-      duration: usefulDuration,
-      physical_effort: "low",
-      social_effort: "low",
-      why: `Connects ${goal} with a tiny practical win, while avoiding ${hates}.`,
-      steps: [
-        "Pick one small thing tomorrow-you will thank you for.",
-        `Walk to do it, buy it, prepare it, or place it within ${usefulDuration} minutes.`,
-        "Take the longer route back by one turn."
-      ],
-      field_prompt: "What became easier because you left the screen?",
-      prep: [memoryLine]
-    },
-    {
-      lane: "Stretch Quest",
-      title: "Hobby in the Wild",
-      quest_type: "curiosity",
-      duration: stretchDuration,
-      physical_effort: "medium",
-      social_effort: "optional",
-      why: `Turns ${hobby} into a real-world hunt instead of another saved post.`,
-      steps: [
-        `Go outside for ${stretchDuration} minutes.`,
-        `Find one real-world detail connected to ${hobby}.`,
-        "Give it a name like it belongs in a collection."
-      ],
-      field_prompt: "What would you call the thing you found?",
-      prep: ["Bring water if you are going farther than usual."]
-    }
-  ];
-}
-
-async function generateWithOllama(payload) {
-  const ollamaUrl = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-  const model = process.env.OLLAMA_MODEL || "qwen2.5:3b";
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-
-  const prompt = `You are the quest designer for Touch Grass: Outbound, an anti-feed app.
-Generate exactly 3 outdoor or out-of-home quests as a JSON array. No markdown.
-Each quest must get the user away from the screen and fit one lane: Easy Win, Useful Quest, Stretch Quest.
-Use short warm language. Avoid shame. Avoid dangerous tasks.
-Do not suggest indoor cleaning unless the user's goal is home.
-Prefer short quests that can be started today.
-Use numeric duration in minutes.
-Use quest_type from: movement, errand, nature, curiosity, social, creativity, home.
-Use physical_effort and social_effort from: none, low, medium, high.
-
-User profile:
-${JSON.stringify(payload.profile || {}, null, 2)}
-
-Current context:
-${JSON.stringify(payload.context || {}, null, 2)}
-
-Relevant memories:
-${JSON.stringify(payload.memories || [], null, 2)}
-
-Return objects with:
-lane, title, quest_type, duration, physical_effort, social_effort, why, steps, field_prompt, prep.`;
-
-  try {
-    const response = await fetch(`${ollamaUrl}/api/generate`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model, prompt, stream: false, options: { temperature: 0.75 } }),
-      signal: controller.signal
-    });
-    if (!response.ok) throw new Error(`Ollama ${response.status}`);
-    const data = await response.json();
-    const parsed = extractJson(data.response || "");
-    return Array.isArray(parsed) && parsed.length ? parsed.slice(0, 3) : null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 async function generateRewardWithOllama(payload) {
   const ollamaUrl = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
@@ -212,32 +127,6 @@ Return only the sentence.`;
   }
 }
 
-async function rankWithTabpfn(payload, quests) {
-  const tabpfnUrl = process.env.TABPFN_URL;
-  if (!tabpfnUrl || !quests?.length) return null;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
-  try {
-    const response = await fetch(`${tabpfnUrl.replace(/\/$/, "")}/rank`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        profile: payload.profile || {},
-        context: payload.context || {},
-        memories: payload.memories || [],
-        history: payload.history || [],
-        quests
-      }),
-      signal: controller.signal
-    });
-    if (!response.ok) throw new Error(`TabPFN ${response.status}`);
-    const data = await response.json();
-    return Array.isArray(data.quests) && data.quests.length ? data.quests.slice(0, 3) : null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 async function liveContext(query) {
   if (!process.env.SERPAPI_KEY || !query) {
@@ -284,7 +173,9 @@ async function integrationStatus() {
       configured: Boolean(process.env.TABPFN_URL),
       url: process.env.TABPFN_URL || "",
       reachable: false
-    }
+    },
+    database: { engine: "sqlite", persistent: true },
+    sources: { weather: "open-meteo", places: "overpass", routing: "openrouteservice", routingConfigured: Boolean(process.env.ORS_API_KEY) }
   };
 
   try {
@@ -304,6 +195,7 @@ async function integrationStatus() {
       const response = await fetch(`${process.env.TABPFN_URL.replace(/\/$/, "")}/health`, { signal: controller.signal });
       clearTimeout(timeout);
       status.tabpfn.reachable = response.ok;
+      if (response.ok) status.tabpfn.health = await response.json();
     } catch {
       status.tabpfn.reachable = false;
     }
@@ -377,27 +269,73 @@ function fallbackReward({ profile = {}, attempt = {} }) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    if (url.pathname.startsWith("/api/")) {
+      res.setHeader("cache-control", "no-store");
+      const expectedOrigin = publicOrigin || `http://${req.headers.host}`;
+      if (req.method === "POST" && req.headers.origin && req.headers.origin !== expectedOrigin) {
+        return sendJson(res, 403, { error: "Cross-origin writes are not allowed." });
+      }
+    }
+    const userId = url.pathname.startsWith("/api/") ? session(req, res) : null;
 
+    if (req.method === "POST" && url.pathname === "/api/bootstrap") {
+      store.migrate(userId, await readJson(req));
+      return sendJson(res, 200, { profile: store.profile(userId), attempts: store.attempts(userId, 1000) });
+    }
+    if (req.method === "POST" && url.pathname === "/api/profile") {
+      const { profile } = await readJson(req);
+      const saved = store.saveProfile(userId, profile);
+      store.log(userId, null, "profile_saved", { hobbies: saved.hobbies.length, goals: saved.goals.length });
+      return sendJson(res, 200, { profile: saved });
+    }
+    if (req.method === "POST" && url.pathname === "/api/attempts/start") {
+      const { recommendationId, candidateId } = await readJson(req);
+      return sendJson(res, 201, { attempt: store.startAttempt(userId, recommendationId, candidateId) });
+    }
+    if (req.method === "POST" && url.pathname === "/api/feedback") {
+      return sendJson(res, 200, { attempt: store.feedback(userId, await readJson(req)) });
+    }
+    if (req.method === "GET" && url.pathname === "/api/lab") {
+      const scope = url.searchParams.get("scope") === "live" ? userId : `${userId}-demo`;
+      store.profile(scope);
+      const page = Math.min(100, Math.max(0, Math.floor(Number(url.searchParams.get("page")) || 0)));
+      return sendJson(res, 200, { ...store.inspect(scope, page), workspace: scope === userId ? "live" : "demo" });
+    }
+    if (req.method === "POST" && url.pathname === "/api/demo/seed") {
+      const { count = 60 } = await readJson(req);
+      return sendJson(res, 200, { ...store.seed(`${userId}-demo`, count, store.profile(userId)), workspace: "demo" });
+    }
+    if (req.method === "POST" && url.pathname === "/api/demo/recommend") {
+      const scope = `${userId}-demo`;
+      store.saveProfile(scope, store.profile(userId));
+      const { context } = await readJson(req);
+      return sendJson(res, 200, await recommender.recommend(scope, context));
+    }
+    if (req.method === "POST" && url.pathname === "/api/location/reverse") {
+      const result = await sources.reverseGeocode(await readJson(req));
+      return sendJson(res, 200, { status: result.status, reason: result.reason, area: result.data?.area || null,
+        attribution: result.data?.attribution || null });
+    }
+    if (req.method === "POST" && url.pathname === "/api/location/conditions") {
+      const context = validateContext(await readJson(req));
+      if (!context.location) throw inputError("Select a location first.");
+      const [weather, air] = await Promise.all([sources.weather(context.location, context.minutes), sources.airQuality(context.location)]);
+      store.log(userId, null, "conditions_preview", { sources: [weather, air].map(({ data, ...status }) => status) });
+      return sendJson(res, 200, { weather: weather.data, airQuality: air.data,
+        sources: [weather, air].map(({ data, ...status }) => status) });
+    }
+    if (req.method === "POST" && url.pathname === "/api/location") {
+      const { query } = await readJson(req);
+      const result = await sources.geocode(query);
+      return sendJson(res, 200, { status: result.status, locations: result.data?.locations || [] });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/activities") {
+      return sendJson(res, 200, { activities: ACTIVITY_CATALOG });
+    }
     if (req.method === "POST" && url.pathname === "/api/generate") {
       const payload = await readJson(req);
-      let quests = null;
-      let source = "local-fallback";
-      try {
-        quests = await generateWithOllama(payload);
-        if (quests) source = "ollama";
-      } catch {
-        // The local model is optional; the app remains useful without it.
-      }
-      if (!quests) quests = fallbackQuests(payload);
-
-      try {
-        const ranked = await rankWithTabpfn(payload, quests);
-        if (ranked) return sendJson(res, 200, { source, ranker: "tabpfn", quests: ranked });
-      } catch {
-        // TabPFN is optional; client-side ranking remains the fallback.
-      }
-
-      return sendJson(res, 200, { source, ranker: "local", quests });
+      return sendJson(res, 200, await recommender.recommend(userId, payload.context, { preferredTemplate: payload.preferredTemplate }));
     }
 
     if (req.method === "GET" && url.pathname === "/api/status") {
@@ -452,6 +390,21 @@ const server = createServer(async (req, res) => {
       }
     }
 
+    if (url.pathname.startsWith("/api/")) return sendJson(res, 404, { error: "Unknown API endpoint." });
+    if (url.pathname === "/vendor/lucide.js") {
+      const file = await readFile(join(root, "node_modules/lucide/dist/umd/lucide.js"));
+      res.writeHead(200, { "content-type": mimeTypes[".js"] });
+      return res.end(file);
+    }
+    const leafletFiles = new Set(["leaflet.js", "leaflet.css", "images/marker-icon.png", "images/marker-icon-2x.png",
+      "images/marker-shadow.png", "images/layers.png", "images/layers-2x.png"]);
+    if (url.pathname.startsWith("/vendor/leaflet/")) {
+      const name = url.pathname.slice("/vendor/leaflet/".length);
+      if (!leafletFiles.has(name)) return sendJson(res, 404, { error: "Unknown map asset." });
+      const file = await readFile(join(root, "node_modules/leaflet/dist", name));
+      res.writeHead(200, { "content-type": mimeTypes[extname(name)] });
+      return res.end(file);
+    }
     const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
     const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
     const filePath = join(publicDir, safePath);
@@ -468,10 +421,14 @@ const server = createServer(async (req, res) => {
       res.writeHead(404);
       return res.end("Not found");
     }
-    sendJson(res, 500, { error: error.message });
+    sendJson(res, error.status || 500, { error: error.status ? error.message : "The request could not be completed." });
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`Touch Grass: Outbound running at http://localhost:${port}`);
+server.listen(port, host, () => {
+  console.log(`Touch Grass: Outbound running at http://localhost:${server.address().port} (bind: ${host})`);
 });
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => server.close(() => { store.close(); process.exit(0); }));
+}

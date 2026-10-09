@@ -1,3 +1,9 @@
+import { createLab } from "./lab.js";
+import { openStartingPointPicker } from "./location-picker.js";
+import { openActivityLibrary } from "./activity-library.js";
+import { coordinateLabel, locationLabel } from "./location-labels.js";
+import { sourceDetail, sourceReason } from "./source-display.js";
+
 const STORE_KEY = "touch-grass-outbound:v1";
 
 const defaultProfile = {
@@ -20,7 +26,21 @@ const badges = [
 ];
 
 const state = loadState();
-let integrations = null;
+let activeTab = "quests";
+let backendReady = false;
+let activeAttemptId = null;
+let recommendationBusy = false;
+let startingQuest = false;
+let locationPending = false;
+let locationError = "";
+let locationRequestId = 0;
+let locationWatchdog = null;
+let locationConditions = null;
+let conditionsPending = false;
+let disposeLocationPicker = null;
+const lab = createLab({ el, api, currentContext: () => ({ minutes: 20, mood: "tired", energy: "low", goal: state.profile.goals[0] || "fitness",
+  locality: "residential", weather: "unknown", ...state.lastContext, location: state.location || null }),
+  locationControls: renderLocationControls, redraw: render, notify: toast });
 let activeQuest = null;
 let activeStartedAt = null;
 let activeTimer = null;
@@ -59,6 +79,28 @@ function saveState() {
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
 }
 
+async function api(path, payload) {
+  const response = await fetch(path, payload === undefined ? {} : {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "The request failed.");
+  return data;
+}
+
+async function initializeBackend() {
+  try {
+    const saved = await api("/api/bootstrap", { profile: state.profile, attempts: state.attempts });
+    state.profile = saved.profile;
+    state.attempts = saved.attempts;
+    if (!state.lastRun?.recommendationId) { state.generated = []; state.lastRun = null; }
+    backendReady = true;
+    saveState(); render();
+    if (state.location) refreshConditions(state.location);
+    if (state.location && !state.location.approximate && !state.location.area) resolveSavedLocation();
+  } catch (error) { toast(`Database connection failed: ${error.message}`); }
+}
+
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   Object.entries(attrs).forEach(([key, value]) => {
@@ -83,106 +125,246 @@ function render() {
   app.append(
     el("main", { class: "app-shell" }, [
       renderTopbar(),
-      el("section", { class: "grid" }, [
-        el("div", {}, [
-          el("section", { class: "panel" }, [
-            el("div", { class: "panel-inner" }, [
-              el("div", { class: "hero-copy" }, [
-                el("div", { class: "eyebrow" }, "Anti-feed quest engine"),
-                el("h2", {}, "Do the thing outside."),
-                el(
-                  "p",
-                  {},
-                  "Outbound recommends small real-world quests from your goals, dislikes, energy, past notes, and local context. The screen is the launcher, not the destination."
-                )
-              ]),
-              renderContextForm(),
-              el("div", { class: "stats-row" }, [
-                statCard(completed, "quests completed"),
-                statCard(`${minutes}m`, "real-world minutes"),
-                statCard(streak, "day streak")
-              ])
-            ])
-          ]),
-          renderHistory()
+      el("nav", { class: "app-tabs", "aria-label": "Views" }, [
+        el("button", { class: activeTab === "quests" ? "active" : "", "aria-current": activeTab === "quests" ? "page" : undefined,
+          onclick: () => { activeTab = "quests"; render(); } }, "Quests"),
+        el("button", { class: activeTab === "lab" ? "active" : "", "aria-current": activeTab === "lab" ? "page" : undefined,
+          onclick: () => { activeTab = "lab"; render(); lab.refresh(); } }, "Recommendation lab")
+      ]),
+      activeTab === "lab" ? lab.render() : el("div", { class: "outing-view" }, [
+        el("section", { class: "outing-banner" }, [
+          el("img", { src: "/outbound-path.jpg", alt: "A sunlit walking path through a green park", fetchpriority: "high" }),
+          el("div", { class: "outing-banner-copy" }, [
+            el("p", {}, `A little fresh air, ${state.profile.name || "Explorer"}.`),
+            el("h2", {}, "Your next outing"),
+            el("span", {}, new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date()))
+          ])
         ]),
-        el("aside", {}, [renderQuestPanel(), renderBadges()])
+        el("div", { class: "stats-row" }, [statCard(completed, "quests completed", "footprints"),
+          statCard(`${minutes}m`, "time outside", "sun"), statCard(streak, "day streak", "flame")]),
+        el("section", { class: "grid" }, [
+          el("section", { class: "setup-column" }, [el("h3", {}, "Make it yours"), renderContextForm()]),
+          el("aside", {}, renderQuestPanel())
+        ]),
+        el("section", { class: "journey-footer" }, [renderHistory(), renderBadges()])
       ])
     ])
   );
+  window.lucide?.createIcons();
 }
 
 function renderTopbar() {
   return el("header", { class: "topbar" }, [
     el("div", { class: "brand" }, [
-      el("div", { class: "brand-mark" }, "TG"),
+      el("div", { class: "brand-mark" }, el("i", { "data-lucide": "footprints", "aria-hidden": "true" })),
       el("div", {}, [
-        el("h1", {}, "Touch Grass: Outbound"),
-        el("p", {}, `For ${state.profile.name || "Explorer"}: less scrolling, more living.`)
+        el("h1", {}, "Outbound"),
+        el("p", {}, "Touch Grass")
       ])
     ]),
     el("div", { class: "top-actions" }, [
-      renderIntegrationPills(),
       renderVoiceControls(),
-      el("button", { class: "button secondary", onclick: openProfile }, "Edit profile"),
-      el("button", { class: "button ghost", onclick: resetDemo }, "Reset demo")
+      el("button", { class: "button secondary profile-button", title: "Edit profile", "aria-label": "Edit profile", onclick: openProfile }, [el("i", { "data-lucide": "user-round", "aria-hidden": "true" }), el("span", {}, "Edit profile")]),
+      el("button", { class: "button ghost icon-button", title: "Clear quest deck", "aria-label": "Clear quest deck", onclick: resetDemo }, el("i", { "data-lucide": "trash-2", "aria-hidden": "true" }))
     ])
   ]);
 }
 
 function renderVoiceControls() {
   return el("div", { class: "voice-controls" }, [
-    el(
-      "button",
-      { class: `button secondary voice-toggle ${state.useElevenVoice ? "active" : ""}`, onclick: toggleElevenVoice },
-      state.useElevenVoice ? "Eleven voice on" : "Browser voice"
-    ),
+    el("label", { class: "voice-toggle", title: "Use ElevenLabs for quest and reward speech" }, [
+      el("input", { type: "checkbox", "aria-label": "ElevenLabs voice", checked: state.useElevenVoice ? "" : undefined, onchange: toggleElevenVoice }),
+      el("span", { class: "toggle-track", "aria-hidden": "true" }), el("span", {}, "ElevenLabs voice")
+    ]),
     voiceBusy ? el("button", { class: "button ghost", onclick: stopVoice }, "Stop voice") : null
   ]);
 }
 
-function renderIntegrationPills() {
-  const items = integrations
-    ? [
-        ["Gemma", integrations.ollama?.reachable ? "on" : "fallback"],
-        ["SerpApi", integrations.serpapi?.configured ? "on" : "off"],
-        ["TabPFN", integrations.tabpfn?.reachable ? "on" : integrations.tabpfn?.configured ? "waiting" : "off"],
-        ["Voice", integrations.elevenlabs?.configured ? "elevenlabs" : "browser"]
-      ]
-    : [["Hooks", "checking"]];
-
-  return el(
-    "div",
-    { class: "hook-strip", title: "Integration status" },
-    items.map(([name, status]) => el("span", { class: `hook-pill ${status}` }, `${name}: ${status}`))
-  );
-}
-
 function renderContextForm() {
-  const todayGoal = state.profile.goals[0] || "fitness";
+  const context = state.lastContext || {};
+  const todayGoal = context.goal || state.profile.goals[0] || "fitness";
   return el("form", { class: "quest-setup", id: "quest-form", onsubmit: generateQuests }, [
-    choiceGroup("minutes", "How much time?", ["5", "10", "15", "20", "30", "45"], "15", (value) => `${value}m`),
-    choiceGroup("mood", "What state are you in?", ["tired", "restless", "bored", "anxious", "curious", "focused"], "restless"),
-    choiceGroup("energy", "Energy", ["low", "medium", "high"], "medium"),
+    choiceGroup("minutes", "How much time?", ["5", "10", "15", "20", "30", "45"], String(context.minutes || 15), (value) => `${value}m`),
+    choiceGroup("mood", "What state are you in?", ["tired", "restless", "bored", "anxious", "curious", "focused"], context.mood || "restless"),
+    choiceGroup("energy", "Energy", ["low", "medium", "high"], context.energy || "medium"),
     choiceGroup("goal", "Today's direction", unique([...state.profile.goals, "fitness", "social", "errands", "nature", "home", "creativity"]), todayGoal),
-    el("div", { class: "setup-row two" }, [
-      compactSelect("locality", "Place vibe", ["residential", "market", "campus", "office", "park", "unknown"], "residential"),
-      compactSelect("weather", "Weather", ["clear", "hot", "cloudy", "rainy", "windy", "unknown"], "unknown")
-    ]),
+    el("details", { class: "context-details" }, [el("summary", {}, "More context"), el("div", { class: "setup-row two" }, [
+      compactSelect("locality", "Place vibe", ["residential", "market", "campus", "office", "park", "unknown"], context.locality || "residential"),
+      compactSelect("weather", "Weather", ["clear", "hot", "cloudy", "rainy", "windy", "snowy", "foggy", "thunderstorm", "unknown"], context.weather || "unknown")
+    ])]),
+    renderLocationControls(),
     el("div", { class: "field" }, [
       el("label", { for: "context-note" }, "Constraint or tiny wish"),
       el("input", {
         id: "context-note",
         name: "note",
+        value: context.note || "",
         placeholder: "Avoid crowds, need to buy milk, want something easy..."
       })
     ]),
-    el("button", { class: "button big-action", type: "submit", id: "generate-button" }, "Generate 3 quests")
+    el("div", { class: "activity-choice" }, [
+      el("button", { class: "button secondary", type: "button", onclick: browseActivities }, [
+        el("i", { "data-lucide": "compass" }), "Browse activities"
+      ]),
+      state.preferredActivity ? el("div", { class: "chosen-activity" }, [
+        el("span", {}, state.preferredActivity.title),
+        el("button", { class: "button ghost icon-button", type: "button", title: "Clear chosen activity", "aria-label": "Clear chosen activity",
+          onclick: () => { state.lastContext = readCurrentContext(); state.preferredActivity = null; saveState(); render(); } }, el("i", { "data-lucide": "x" }))
+      ]) : null
+    ]),
+    el("button", { class: "button big-action", type: "submit", id: "generate-button", disabled: !backendReady || recommendationBusy || undefined },
+      [el("i", { "data-lucide": "sparkles", "aria-hidden": "true" }),
+        !backendReady ? "Connecting to your history..." : recommendationBusy ? "Building your deck..." : "Generate 3 quests"])
   ]);
 }
 
+function readCurrentContext() {
+  const form = document.querySelector("#quest-form");
+  return { ...(form ? Object.fromEntries(new FormData(form)) : state.lastContext || { minutes: 15 }), location: state.location || null };
+}
+
+function browseActivities() {
+  state.lastContext = readCurrentContext(); saveState(); closeModal();
+  openActivityLibrary({ el, api, minutes: Number(state.lastContext.minutes), onClose: closeModal,
+    onChoose: activity => {
+      state.preferredActivity = { id: activity.id, title: activity.title };
+      state.lastContext.minutes = Math.max(Number(state.lastContext.minutes), activity.minMinutes);
+      saveState(); closeModal(); render();
+    } });
+}
+
+function renderLocationControls() {
+  return el("div", { class: "location-controls" }, [
+    el("div", { class: "location-status" }, [el("strong", {}, "Starting point"), el("span", {}, locationPending ? "Locating..." : locationLabel(state.location)),
+      state.location ? el("small", {}, state.location.approximate ? "Area only" : "Precise starting point") : null]),
+    el("button", { class: "button secondary icon-button", type: "button", title: "Use current location", "aria-label": "Use current location", disabled: locationPending || undefined, onclick: useCurrentLocation }, el("i", { "data-lucide": "locate-fixed" })),
+    el("button", { class: "button secondary icon-button", type: "button", title: "Choose area", "aria-label": "Choose area", onclick: openLocationSearch }, el("i", { "data-lucide": "search", "aria-hidden": "true" })),
+    el("button", { class: "button secondary icon-button", type: "button", title: "Set starting point", "aria-label": "Set starting point", onclick: openManualLocation }, el("i", { "data-lucide": "map-pinned", "aria-hidden": "true" })),
+    state.location ? el("button", { class: "button ghost icon-button", type: "button", title: "Remove location", "aria-label": "Remove location",
+      onclick: () => selectLocation(null) }, el("i", { "data-lucide": "x" })) : null,
+    locationError ? el("p", { class: "location-error", role: "alert" }, locationError) : null,
+    conditionsPending ? el("p", { class: "location-conditions", role: "status" }, "Fetching weather and air quality...") : null,
+    locationConditions ? el("div", { class: "location-conditions", role: "status" }, locationConditions.sources.map(s =>
+      el("p", {}, `${s.source}: ${sourceDetail(s, locationConditions)} (${s.status})`))) : null
+  ]);
+}
+
+function selectLocation(location) {
+  state.lastContext = readCurrentContext();
+  locationRequestId++; locationPending = false; locationError = "";
+  clearTimeout(locationWatchdog); locationConditions = null; conditionsPending = false;
+  state.location = location;
+  if (location) state.lastContext.location = location;
+  if (!location && state.lastContext) delete state.lastContext.location;
+  saveState(); render();
+  if (location) refreshConditions(location);
+}
+
+async function refreshConditions(location) {
+  const id = locationRequestId;
+  conditionsPending = true; render();
+  try {
+    const result = await api("/api/location/conditions", { ...readCurrentContext(), minutes: Number(readCurrentContext().minutes || 15), location });
+    if (id !== locationRequestId || state.location !== location) return;
+    locationConditions = result;
+  } catch {
+    if (id !== locationRequestId || state.location !== location) return;
+    locationConditions = { sources: [{ source: "Weather / air quality", status: "unavailable", reason: "request_failed" }] };
+  } finally {
+    if (id === locationRequestId && state.location === location) { state.lastContext = readCurrentContext(); conditionsPending = false; render(); }
+  }
+}
+
+function useCurrentLocation() {
+  state.lastContext = readCurrentContext();
+  if (!window.isSecureContext || !navigator.geolocation) {
+    locationError = "Browser location is unavailable here. Open http://localhost:5177 in a browser, or set a map starting point.";
+    render(); return;
+  }
+  const policy = document.permissionsPolicy || document.featurePolicy;
+  if (policy?.allowsFeature && !policy.allowsFeature("geolocation")) {
+    locationError = "This preview blocks browser location. Open http://localhost:5177 directly, or set a map starting point.";
+    render(); return;
+  }
+  const requestId = ++locationRequestId;
+  locationConditions = null; conditionsPending = false;
+  locationPending = true; locationError = ""; render();
+  clearTimeout(locationWatchdog);
+  const failed = error => {
+    if (requestId !== locationRequestId) return;
+    clearTimeout(locationWatchdog); locationPending = false; ++locationRequestId;
+    locationError = {
+      1: "Location permission was denied. Check browser and system location permission, or set a starting point.",
+      2: "Your browser could not determine your position. Set a starting point instead.",
+      3: "Location lookup timed out. Try again or set a starting point."
+    }[error.code] || "Location lookup failed. Set a starting point instead.";
+    state.lastContext = readCurrentContext(); render();
+  };
+  locationWatchdog = setTimeout(() => failed({ code: 3 }), 16000);
+  try { navigator.geolocation.getCurrentPosition(async position => {
+    if (requestId !== locationRequestId) return;
+    clearTimeout(locationWatchdog);
+    const point = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+    selectLocation({ ...point, label: coordinateLabel(point), approximate: false, method: "gps", accuracyMeters: position.coords.accuracy });
+    const selected = state.location, selectedId = locationRequestId;
+    const area = await lookupArea(point);
+    if (selectedId !== locationRequestId || state.location !== selected) return;
+    if (area) {
+      state.lastContext = readCurrentContext();
+      state.location = { ...selected, area, label: area }; state.lastContext.location = state.location;
+      saveState(); render();
+      if (conditionsPending) refreshConditions(state.location);
+    }
+    toast("Current location selected.");
+  }, failed, { timeout: 15000, maximumAge: 60000, enableHighAccuracy: false }); }
+  catch (error) { failed(error); }
+}
+
+function openManualLocation() {
+  state.lastContext = readCurrentContext(); saveState();
+  closeModal();
+  disposeLocationPicker = openStartingPointPicker({ el, api, initial: state.location,
+    onClose: closeModal, onSave: location => { selectLocation(location); closeModal(); toast("Starting point saved."); } });
+}
+
+async function lookupArea(point) {
+  try { return (await api("/api/location/reverse", point)).area || ""; }
+  catch { return ""; }
+}
+
+async function resolveSavedLocation() {
+  const location = state.location;
+  const requestId = locationRequestId;
+  const area = await lookupArea(location);
+  if (state.location !== location || requestId !== locationRequestId || !area) return;
+  const alias = location.alias || (/^(my starting point|current location|sample place)$/i.test(location.label || "") || location.label === coordinateLabel(location) ? "" : location.label);
+  selectLocation({ ...location, area, alias, label: alias ? `${alias} / ${area}` : area });
+}
+
+function openLocationSearch() {
+  const results = el("div", { class: "location-results" });
+  document.body.append(el("div", { class: "modal-backdrop" }, el("section", { class: "modal" }, [
+    el("header", {}, [el("h2", {}, "Choose an area"), el("button", { class: "button ghost", onclick: closeModal }, "Close")]),
+    el("form", { class: "modal-body", onsubmit: async event => {
+      event.preventDefault(); const button = event.target.querySelector("button[type=submit]"); button.disabled = true;
+      try {
+        const data = await api("/api/location", { query: new FormData(event.target).get("query") });
+        results.replaceChildren(...data.locations.map(location => el("button", { class: "button secondary", type: "button", onclick: () => {
+          selectLocation(location); closeModal();
+        } }, location.label)));
+        if (!data.locations.length) results.textContent = "No areas found. Try another name.";
+      } catch (error) { toast(error.message); }
+      finally { button.disabled = false; }
+    } }, [el("label", { class: "field" }, ["Town or city", el("input", { name: "query", required: "", minlength: 2, maxlength: 100 })]),
+      el("button", { class: "button", type: "submit" }, "Search"), results])
+  ])));
+}
+
 function choiceGroup(name, label, options, value, format = title) {
-  return el("fieldset", { class: "choice-group" }, [
+  const icons = { tired: "moon", restless: "wind", bored: "coffee", anxious: "heart", curious: "scan-eye", focused: "focus",
+    low: "battery-low", medium: "battery-medium", high: "battery-full", fitness: "footprints", social: "users", errands: "shopping-bag",
+    nature: "leaf", home: "house", creativity: "palette", calm: "cloud-sun", confidence: "sun" };
+  return el("fieldset", { class: `choice-group choices-${name}` }, [
     el("legend", {}, label),
     el(
       "div",
@@ -190,7 +372,7 @@ function choiceGroup(name, label, options, value, format = title) {
       options.map((option) =>
         el("label", { class: "choice-tile" }, [
           el("input", { type: "radio", name, value: option, ...(option === value ? { checked: "checked" } : {}) }),
-          el("span", {}, format(option))
+          el("span", {}, [icons[option] ? el("i", { "data-lucide": icons[option], "aria-hidden": "true" }) : null, format(option)])
         ])
       )
     )
@@ -208,8 +390,9 @@ function compactSelect(name, label, options, value) {
   ]);
 }
 
-function statCard(value, label) {
-  return el("div", { class: "stat" }, [el("strong", {}, String(value)), el("span", {}, label)]);
+function statCard(value, label, icon) {
+  return el("div", { class: "stat" }, [el("i", { "data-lucide": icon, "aria-hidden": "true" }),
+    el("div", {}, [el("strong", {}, String(value)), el("span", {}, label)])]);
 }
 
 function renderQuestPanel() {
@@ -218,19 +401,24 @@ function renderQuestPanel() {
       el("div", { class: "section-title" }, [
         el("div", {}, [el("h3", {}, "Quest deck"), el("p", {}, questPanelSubtitle())])
       ]),
+      state.liveContext ? el("div", { class: "run-evidence" }, [
+        el("strong", {}, "Saved outing conditions"),
+        state.lastRun?.context?.location ? el("p", {}, locationLabel(state.lastRun.context.location)) : null,
+        ...(state.liveContext.sources || []).filter(s => ["open-meteo", "open-meteo-air"].includes(s.source))
+          .map(s => el("p", {}, `${sourceDetail(s, state.liveContext)} (${s.status})`)),
+        state.lastRun?.destinations?.eligible === 0 ? el("p", { class: "location-error" },
+          `No named destination recommended: ${state.lastRun.destinations.reasons.map(sourceReason).join("; ")}.`) : null
+      ]) : null,
       state.generated.length
         ? el("div", { class: "quest-stack" }, state.generated.map(renderQuestCard))
-        : el("div", { class: "empty-state" }, "Set your context and generate three quests. Pick one, then let the app get quiet.")
+        : el("div", { class: "empty-state" }, [el("i", { "data-lucide": "compass", "aria-hidden": "true" }), "Your next outing is waiting."])
     ])
   ]);
 }
 
 function questPanelSubtitle() {
-  if (state.lastRun?.ranker === "tabpfn") return "Generated by the quest engine and ranked by TabPFN.";
-  if (state.lastRun?.source === "ollama") return "Generated by local Gemma/Ollama, ranked from your history.";
-  if (state.liveContext?.available) return "Grounded with live context and your local history.";
-  if (state.generated.length) return "Ranked from your profile and attempt history.";
-  return "No infinite feed. Just three doors.";
+  if (state.generated.length) return "Three possibilities for today";
+  return "A fresh start";
 }
 
 function renderQuestCard(quest, index) {
@@ -243,20 +431,26 @@ function renderQuestCard(quest, index) {
     el("div", { class: "quest-meta" }, [
       el("span", { class: "pill" }, quest.lane || "Quest"),
       el("span", { class: "pill" }, `${quest.duration || 15} min`),
-      el("span", { class: "pill" }, title(quest.quest_type || "action")),
-      el("span", { class: "pill" }, `score ${Math.round((quest.score || 0.6) * 100)}`),
-      quest.ranker ? el("span", { class: "pill" }, quest.ranker) : null
+      el("span", { class: "pill" }, title(quest.quest_type || "action"))
     ]),
     el("h4", {}, quest.title || "Outside Quest"),
+    quest.destination ? el("div", { class: "quest-destination" }, [
+      el("i", { "data-lucide": "map-pin" }),
+      el("div", {}, [el("strong", {}, quest.destination.name),
+        el("span", {}, `${quest.travel_minutes}m walking round trip / ${quest.activity_minutes}m activity / ${quest.buffer_minutes ?? 2}m reserve`),
+        el("span", {}, "Access and opening hours unverified")])
+    ]) : null,
     el("p", {}, quest.why || "A small action that makes the real world easier to choose."),
+    quest.evidence ? el("details", { class: "quest-rationale" }, [el("summary", {}, "Why this quest"),
+      el("ul", {}, quest.evidence.reasons.map(r => el("li", {}, [el("span", {}, r.text), el("small", {}, r.source)])))]) : null,
     el(
       "ol",
       {},
       (quest.steps || []).slice(0, 3).map((step) => el("li", {}, step))
     ),
     el("div", { class: "quest-actions" }, [
-      el("button", { class: "button", onclick: () => startQuest(index) }, "Start"),
-      el("button", { class: "button secondary", onclick: () => previewQuest(index) }, "Read aloud")
+      el("button", { class: "button", onclick: () => startQuest(index) }, [el("i", { "data-lucide": "arrow-up-right", "aria-hidden": "true" }), "Start"]),
+      el("button", { class: "button secondary", onclick: () => previewQuest(index) }, [el("i", { "data-lucide": "volume-2", "aria-hidden": "true" }), "Read aloud"])
     ])
   ]);
 }
@@ -266,7 +460,7 @@ function renderHistory() {
   return el("section", { class: "panel", style: "margin-top: 20px;" }, [
     el("div", { class: "panel-inner" }, [
       el("div", { class: "section-title" }, [
-        el("div", {}, [el("h3", {}, "Field log"), el("p", {}, "Your notes stay in this browser.")])
+        el("div", {}, [el("h3", {}, "Field log"), el("p", {}, "Your recent outings and reflections.")])
       ]),
       recent.length
         ? el(
@@ -280,7 +474,7 @@ function renderHistory() {
               ])
             )
           )
-        : el("div", { class: "empty-state" }, "Complete or partially complete a quest to start your field log.")
+        : el("div", { class: "empty-state" }, [el("i", { "data-lucide": "notebook-pen", "aria-hidden": "true" }), "No outings logged yet."])
     ])
   ]);
 }
@@ -375,13 +569,15 @@ function profileChips(name, label, options, selected = []) {
 }
 
 function closeModal() {
+  disposeLocationPicker?.(); disposeLocationPicker = null;
   document.querySelector(".modal-backdrop")?.remove();
 }
 
-function saveProfile(event) {
+async function saveProfile(event) {
   event.preventDefault();
+  if (!backendReady) return toast("Your history is still connecting. Please try again shortly.");
   const data = Object.fromEntries(new FormData(event.target));
-  state.profile = {
+  const profile = {
     name: data.name || "Explorer",
     hobbies: collectProfileList(event.target, "hobbies"),
     goals: collectProfileList(event.target, "goals"),
@@ -390,6 +586,8 @@ function saveProfile(event) {
     socialComfort: data.socialComfort,
     effortComfort: data.effortComfort
   };
+  try { state.profile = (await api("/api/profile", { profile })).profile; }
+  catch (error) { return toast(error.message); }
   saveState();
   closeModal();
   render();
@@ -404,58 +602,40 @@ function collectProfileList(form, name) {
 
 async function generateQuests(event) {
   event.preventDefault();
+  if (!backendReady || recommendationBusy) return;
+  recommendationBusy = true;
   const button = document.querySelector("#generate-button");
   button.disabled = true;
   button.textContent = "Building your deck...";
 
   const form = new FormData(event.target);
-  const context = Object.fromEntries(form);
+  const context = { ...Object.fromEntries(form), ...(state.location ? { location: state.location } : {}) };
   state.lastContext = context;
-  const memories = retrieveMemories(context);
-
-  state.liveContext = await fetchLiveContext(context);
-  const payload = {
-    profile: state.profile,
-    context: { ...context, liveContext: state.liveContext?.summary },
-    memories,
-    history: structuredHistory()
-  };
-
-  const response = await fetch("/api/generate", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  const data = await response.json();
+  try {
+  const data = await api("/api/generate", { context, preferredTemplate: state.preferredActivity?.id || null });
   const candidates = normalizeQuests(data.quests || []);
-  state.generated = data.ranker === "tabpfn" ? candidates : rankQuests(candidates, context);
+  state.generated = candidates;
+  state.preferredActivity = null;
+  state.lastContext = data.context;
+  state.liveContext = data.facts;
   state.lastRun = {
-    source: data.source || "local-fallback",
-    ranker: data.ranker || "local",
+    recommendationId: data.id,
+    source: data.source,
+    ranker: data.ranker,
+    context: data.context,
+    destinations: data.destinations,
     at: new Date().toISOString()
   };
   saveState();
-  render();
-  if (data.ranker === "tabpfn") toast("TabPFN ranked this deck from your structured history.");
-  else toast(data.source === "ollama" ? "Gemma/Ollama shaped this quest deck." : "Offline quest engine shaped this deck.");
+  toast(data.notice || "Your next three possibilities are ready.");
+  } catch (error) { toast(error.message); }
+  finally { recommendationBusy = false; render(); }
 }
 
-async function fetchLiveContext(context) {
-  const query = `${context.weather || ""} ${context.locality || ""} outdoor things nearby ${state.profile.goals.join(" ")}`.trim();
-  try {
-    const response = await fetch("/api/context", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query })
-    });
-    return await response.json();
-  } catch {
-    return { available: false, source: "offline", summary: "Live context unavailable." };
-  }
-}
 
 function normalizeQuests(quests) {
   return quests.slice(0, 3).map((quest, index) => ({
+    ...quest,
     lane: quest.lane || ["Easy Win", "Useful Quest", "Stretch Quest"][index],
     title: quest.title || "Outside Quest",
     quest_type: quest.quest_type || "movement",
@@ -471,80 +651,16 @@ function normalizeQuests(quests) {
   }));
 }
 
-function rankQuests(quests, context) {
-  return quests
-    .map((quest) => ({ ...quest, score: scoreQuest(quest, context) }))
-    .sort((a, b) => b.score - a.score)
-    .sort((a, b) => laneOrder(a.lane) - laneOrder(b.lane));
-}
 
-function scoreQuest(quest, context) {
-  const attempts = state.attempts;
-  let score = 0.52;
-  const similar = attempts.filter((attempt) => attempt.quest.quest_type === quest.quest_type);
-  const completedSimilar = similar.filter((attempt) => attempt.status === "completed");
-  const likedSimilar = similar.filter((attempt) => attempt.liked);
-
-  if (similar.length) score += (completedSimilar.length / similar.length) * 0.2;
-  if (similar.length) score += (likedSimilar.length / similar.length) * 0.14;
-  if (quest.duration <= Number(context.minutes)) score += 0.08;
-  if (quest.social_effort === "none" && state.profile.socialComfort === "none") score += 0.08;
-  if (quest.social_effort === "low" && ["low", "medium", "high"].includes(state.profile.socialComfort)) score += 0.04;
-  if (quest.physical_effort === "low" && context.energy === "low") score += 0.08;
-  if (quest.physical_effort === "medium" && context.energy === "high") score += 0.06;
-  if (containsAny(quest.title + quest.why, state.profile.hates)) score -= 0.16;
-  if (attempts.slice(-3).some((attempt) => attempt.quest.title === quest.title)) score -= 0.22;
-
-  return Math.max(0.05, Math.min(0.98, score));
-}
-
-function laneOrder(lane = "") {
-  if (lane.toLowerCase().includes("easy")) return 0;
-  if (lane.toLowerCase().includes("useful")) return 1;
-  return 2;
-}
-
-function retrieveMemories(context) {
-  const terms = [context.goal, context.mood, context.energy, context.note, ...state.profile.hates, ...state.profile.reminders]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((term) => term.length > 2);
-
-  return state.attempts
-    .map((attempt) => {
-      const text = `${attempt.note || ""} ${attempt.quest.title} ${attempt.quest.quest_type}`.toLowerCase();
-      const score = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
-      return { text: attempt.note || attempt.quest.title, score };
-    })
-    .filter((memory) => memory.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
-}
-
-function structuredHistory() {
-  return state.attempts.map((attempt) => ({
-    minutes_available: attempt.context?.minutes || attempt.quest.duration || attempt.minutes,
-    mood_before: attempt.context?.mood || "unknown",
-    energy_before: attempt.context?.energy || "unknown",
-    goal_type: attempt.context?.goal || attempt.quest.quest_type || "unknown",
-    locality_type: attempt.context?.locality || "unknown",
-    weather: attempt.context?.weather || "unknown",
-    quest_type: attempt.quest.quest_type || "action",
-    quest_duration: attempt.quest.duration || attempt.minutes,
-    physical_effort: attempt.quest.physical_effort || "unknown",
-    social_effort: attempt.quest.social_effort || "unknown",
-    status: attempt.status,
-    completed: attempt.status === "completed",
-    liked: Boolean(attempt.liked),
-    benefit_score: Number(attempt.benefit || 3),
-    note: attempt.note || ""
-  }));
-}
-
-function startQuest(index) {
+async function startQuest(index) {
+  if (startingQuest || document.querySelector(".field-mode")) return;
+  startingQuest = true;
   activeQuest = state.generated[index];
+  try {
+    const saved = await api("/api/attempts/start", { recommendationId: state.lastRun?.recommendationId, candidateId: activeQuest.id });
+    activeAttemptId = saved.attempt.id;
+  } catch (error) { activeQuest = null; return toast(error.message); }
+  finally { startingQuest = false; }
   activeStartedAt = Date.now();
   remainingSeconds = Number(activeQuest.duration || 15) * 60;
   renderFieldMode();
@@ -599,13 +715,14 @@ function openReflection() {
             el("div", { class: "field" }, [
               el("label", { for: "liked" }, "Did it feel worth it?"),
               el("select", { id: "liked", name: "liked" }, [
+                el("option", { value: "" }, "Not rated"),
                 el("option", { value: "true" }, "Yes"),
                 el("option", { value: "false" }, "Not really")
               ])
             ]),
             el("div", { class: "field" }, [
               el("label", { for: "benefit" }, "Benefit score"),
-              el("select", { id: "benefit", name: "benefit" }, ["1", "2", "3", "4", "5"].map((n) => el("option", { value: n }, n)))
+              el("select", { id: "benefit", name: "benefit" }, [el("option", { value: "" }, "Not rated"), ...["1", "2", "3", "4", "5"].map((n) => el("option", { value: n }, n))])
             ]),
             el("div", { class: "field" }, [
               el("label", { for: "note" }, activeQuest.field_prompt || "One note"),
@@ -632,18 +749,21 @@ async function saveAttempt(event) {
   const data = Object.fromEntries(new FormData(event.target));
   const elapsed = Math.max(1, Math.round((Date.now() - activeStartedAt) / 60000));
   const earnedBefore = earnedBadgeIds();
-  const attempt = {
-    id: crypto.randomUUID(),
+  let attempt = {
+    id: activeAttemptId,
     quest: activeQuest,
     context: state.lastContext || {},
     status: data.status,
-    liked: data.liked === "true",
-    benefit: Number(data.benefit),
+    liked: data.liked === "" ? null : data.liked === "true",
+    benefit: data.benefit === "" ? null : Number(data.benefit),
     note: data.note,
     minutes: Math.min(elapsed, Number(activeQuest.duration || elapsed)),
     completedAt: new Date().toISOString()
   };
-  state.attempts.push(attempt);
+  const button = event.target.querySelector("button[type=submit]"); button.disabled = true;
+  try { attempt = (await api("/api/feedback", attempt)).attempt; }
+  catch (error) { button.disabled = false; return toast(error.message); }
+  state.attempts = [...state.attempts.filter(a => a.id !== attempt.id), attempt];
   state.generated = [];
   state.lastRun = null;
   saveState();
@@ -862,6 +982,7 @@ async function previewQuest(index) {
 }
 
 function toggleElevenVoice() {
+  state.lastContext = readCurrentContext();
   state.useElevenVoice = !state.useElevenVoice;
   if (!state.useElevenVoice) stopVoice({ silent: true });
   saveState();
@@ -926,43 +1047,17 @@ function playLocalSound(src, volume = 0.7) {
 }
 
 function seedDemoData() {
-  const now = Date.now();
-  const demo = [
-    ["Future-You Errand", "errand", "completed", true, 5, "Buying fruit during a walk felt useful. Remind me to carry a bag."],
-    ["Two-Block Reset", "movement", "completed", true, 4, "Good after work, but avoid the crowded main road."],
-    ["Hobby in the Wild", "curiosity", "partial", true, 4, "I liked finding textures. Keep quests short when it is hot."]
-  ].map(([titleText, type, status, liked, benefit, note], index) => ({
-    id: crypto.randomUUID(),
-    quest: { title: titleText, quest_type: type },
-    status,
-    liked,
-    benefit,
-    note,
-    minutes: 12 + index * 4,
-    completedAt: new Date(now - index * 86400000).toISOString()
-  }));
-  state.attempts = [...state.attempts, ...demo];
-  saveState();
   closeModal();
+  activeTab = "lab";
   render();
-  toast("Sample history added. The ranker has something to learn from.");
+  lab.refresh();
 }
 
 function resetDemo() {
-  if (!confirm("Reset profile, quests, and history for this browser?")) return;
-  localStorage.removeItem(STORE_KEY);
-  Object.assign(state, loadState());
+  state.lastContext = readCurrentContext();
+  state.generated = []; state.lastRun = null;
+  saveState();
   render();
-}
-
-async function refreshIntegrationStatus() {
-  try {
-    const response = await fetch("/api/status");
-    integrations = await response.json();
-    render();
-  } catch {
-    integrations = null;
-  }
 }
 
 function splitList(value = "") {
@@ -1046,4 +1141,4 @@ document.addEventListener(
 );
 
 render();
-refreshIntegrationStatus();
+initializeBackend();
