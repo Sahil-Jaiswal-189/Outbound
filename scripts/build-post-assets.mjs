@@ -17,8 +17,9 @@ async function artifact(prefix, project, file) {
 }
 
 const pictures = {
+  "home.png": ["app-destination-quests", "desktop", "home-deck.png"],
   "quests.png": ["app-destination-quests", "desktop", "destination-quest.png"],
-  "lab.png": ["app-destination-quests", "desktop", "destination-lab.png"],
+  "lab.png": ["app-destination-quests", "desktop", "scoring-lab.png"],
   "sources.png": ["app-destination-quests", "desktop", "source-evidence.png"],
   "catalog.png": ["app-all-120-activities", "desktop", "activity-library-full.png"],
   "profile.png": ["app-fresh-UI", "desktop", "profile.png"],
@@ -40,12 +41,6 @@ try {
   await page.screenshot({ path: join(assets, "architecture.png") });
 
   await page.goto("about:blank");
-  await page.setViewportSize({ width: 1440, height: 960 });
-  const home = await dataUrl(await artifact("app-fresh-UI", "desktop", "home-1440.png"));
-  await page.setContent(`<style>html,body{margin:0;width:1440px;height:960px;overflow:hidden;background:#fff}img{width:1440px;display:block}</style><img alt="Actual Outbound homepage" src="${home}">`);
-  await page.locator("img").evaluate(image => image.decode());
-  await page.screenshot({ path: join(assets, "home.png") });
-
   const screens = await Promise.all(["choose-mobile.png", "field-mobile.png", "reflection-mobile.png"].map(file => dataUrl(join(assets, file))));
   await page.setViewportSize({ width: 1440, height: 1160 });
   await page.setContent(`<!doctype html><html><head><style>

@@ -39,6 +39,29 @@ Screenshots use automated demo data. Named places and source readings in the vis
 
 The flow is **context + history -> structured facts -> feasible catalog/place matches -> outcome predictions -> constrained selection -> Qwen wording -> saved quests -> feedback**. A user-selected catalog activity still passes the same feasibility checks. TabPFN and the selection policy are different components; new feedback conditions the predictor but does not fine-tune either model's weights.
 
+### Clear Recommendation Responsibilities
+
+1. **Filter first:** source adapters and the backend establish feasible activities using time, travel, physical/social comfort, supported dislikes/current constraints, daylight, weather and air quality.
+2. **Predict:** TabPFN receives 13 structured pre-outing features and labeled history, then estimates completion and liking. It does not discover places or choose the final deck.
+3. **Score and select:** when at least one target uses validated TabPFN (`tabpfn` or `hybrid`), `score = 0.5 * completion_probability + 0.5 * liked_probability - repetition_penalty`. Hybrid keeps the other target's baseline estimate. No additional goal, mood or place bonuses are added to these predictions.
+4. **Cold-start fallback:** when neither target uses TabPFN (`baseline`, including model failure), ranking instead uses explicit preference fit: 1 for a current-goal match, 0.75 for a supported hobby match, otherwise 0.4, minus the same repetition penalty. Provisional category-baseline probabilities remain visible but do not determine fallback ranking. This is a rule-based fallback, not learned personalization.
+5. **Write last:** Qwen personalizes wording after selection; factual steps, timings and destinations remain backend-owned.
+
+Repetition subtracts 0.15 for a template attempted within the last 12 feedback rows and 0.08 for one displayed in the last eight decks. Selection avoids duplicate activities/destinations, prefers different categories and recent-offer novelty, and explores on the third slot with probability 0.15. Existing first-slot low-effort and feasible named-place preferences remain selection constraints, not score bonuses. Scores are not probabilities; the equal weights and exploration rate are product settings, not measured optima.
+
+| Data | Backend use | TabPFN feature use |
+| --- | --- | --- |
+| Profile hobbies, dislikes, comfort, reminders | Filtering, fallback preferences, preparation and Qwen context | Not direct prediction features |
+| Minutes, mood, energy, goal, locality type | Outing settings; time/energy checks; goal-based fallback | All five are features |
+| Weather, temperature, rain probability | Conditions checks and preparation | All three are features |
+| Air quality | Conditions checks and preparation | Not a feature |
+| Mapped places and walking routes | Named candidate construction, compatibility and time checks | Travel minutes only; no place names/coordinates |
+| Candidate type, total duration, physical/social effort | Feasibility and selection | All four are features |
+| Past completion/liking and outing features | Repetition tracking and baseline estimates | Labeled historical examples |
+| Notes and recently offered activities | Supported intent, remembered preparation, Qwen context and novelty | Not prediction features |
+
+Hobbies and place categories are not yet TabPFN inputs. Removing their model-run bonuses is deliberate: no claim is made that they are learned indirectly. Adding reliable structured features and evaluating them against the chronological baseline is future work. Mood is already a TabPFN input, but is never added again as a scoring bonus. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the exact flow and limitations.
+
 ## Prerequisites
 
 - Node.js **22.13+** (native `node:sqlite`) and npm. Developed with Node 25.3.
@@ -149,7 +172,7 @@ OLLAMA_MODEL=qwen2.5:3b
 
 Qwen customizes the selected activities' short copy. The backend preserves factual steps, destinations, duration and preparation. If generation fails or times out, the selected template quests remain usable.
 
-Named destination titles and **Why this quest** evidence are preserved independently of Qwen's wording. Reasons report the current time/energy/mood settings, supported goal and hobby matches, recorded completion/enjoyment counts, a recent relevant note, source facts and the selection decision. Mood fit is an explicit product rule, not a mental-health prediction. Simple bring/carry reminders for water, an umbrella, a snack or a reusable bag can be carried forward from the latest relevant note; arbitrary notes are not fully interpreted.
+Named destination titles and **Why this quest** evidence are preserved independently of Qwen's wording. Reasons report time/energy fit, supported goal and hobby matches, recorded completion/enjoyment counts, a recent relevant note, source facts and the selection decision. They identify outcome-average versus preference-fallback ranking. A goal/hobby match is factual context, not proof of an extra model-run bonus or an inferred causal benefit. Simple bring/carry reminders for water, an umbrella, a snack or a reusable bag can be carried forward from the latest relevant note; arbitrary notes are not fully interpreted.
 
 ## Local TabPFN
 
@@ -190,7 +213,7 @@ Weather is cached for 10 minutes, air quality for 30 minutes, places/routes for 
 
 Overpass tries the standard public endpoint, then Private.coffee on a network/server failure (at most two requests, **35 seconds each**). Queries allow **15 seconds of server execution**; the longer HTTP deadline leaves room for queueing and network delay. Place discovery can therefore take up to about 70 seconds when both endpoints are slow, before routing and model inference. Rate-limit responses are not retried. Concurrent duplicate queries share a request; failures have a 30-second per-query cooldown. Set `OVERPASS_URL` to self-host; custom endpoints have no automatic public fallback unless `OVERPASS_FALLBACK_URL` is explicitly set. An empty fallback variable disables failover. Missing routing credentials are shown independently of place-fetch failures. Only unexpired cached facts are reused: there is no stale-place fallback or cross-area cache reuse in this version.
 
-The legacy SerpAPI endpoint remains available when configured, but it is **not called by the recommendation pipeline**.
+The optional SerpAPI endpoint remains available when configured, but it is **not called by the recommendation pipeline**.
 
 Selecting a starting point previews weather and modeled air quality on both the homepage and lab. AQI is a regional CAMS estimate, not a neighbourhood sensor reading. Transient AQI failures receive one bounded retry (five-second first deadline, eight-second retry); rate limits and invalid responses are not retried. Persistent failure is displayed as unknown, never clean air. Location requests visibly enter a pending state and have a watchdog; browser/system permissions or an embedded preview can still prevent GPS access.
 
@@ -213,9 +236,9 @@ On the homepage, **Browse activities** provides search, category/time filters an
 
 The three-route budget prioritizes your goal or chosen activity and covers different place groups before additional similar venues. Each routed place contributes at most 12 feasible matches balanced across activity categories. When the same activity fits multiple places, the shorter verified round trip is retained. The original activity ID is preserved for history and repetition checks.
 
-Every destination candidate includes **round-trip walking time + on-site activity time + a two-minute reserve**. The catalog minimum is conservatively required as on-site time. Activities without enough time or a successful route are not attached to named destinations. Live conditions and profile constraints still apply before TabPFN ranking. A small rules-based place-fit bonus applies only to matches aligned with your goal or supported hobby; it is not a learned estimate of benefit. A deck does not repeat the same activity or destination.
+Every destination candidate includes **round-trip walking time + on-site activity time + a two-minute reserve**. The catalog minimum is conservatively required as on-site time. Activities without enough time or a successful route are not attached to named destinations. Live conditions and profile constraints still apply before TabPFN ranking. Places supply feasible opportunities, not an extra scoring bonus. A deck does not repeat the same activity or destination.
 
-Quest cards display the destination and time breakdown. In the lab, inspect **Place-to-activity matches**, **Destination candidates**, the **Place fit** score component and the `route_selection` / `place_matching` events. Access, stock, seating, facilities and opening hours remain unverified. Without precise coordinates or `ORS_API_KEY`, the general catalog remains available without invented destination travel times.
+Quest cards display the destination and time breakdown. In the lab, inspect **Place-to-activity matches**, **Destination candidates**, the **Scoring / Base score / Repeat penalty** columns and the `route_selection` / `place_matching` events. Access, stock, seating, facilities and opening hours remain unverified. Without precise coordinates or `ORS_API_KEY`, the general catalog remains available without invented destination travel times.
 
 ## Recommendation Lab
 
@@ -252,7 +275,7 @@ npm run test:browser
 
 Backend tests cover persistence, ownership, missing labels, demo isolation, source caching, constraints and exploration. Python tests cover chronological evaluation and truthful fallbacks. Browser tests cover desktop/mobile seeding, recommendations and saved feedback without spending voice API credits.
 
-The current local check runs **30 backend, 13 Python and 26 desktop/mobile browser tests**. A passing synthetic evaluation proves that the pipeline executes, not that users become more active.
+The test suite includes **34 backend, 13 Python and 28 desktop/mobile browser tests**, including score separation, hybrid/fallback behavior, saved-record display, repetition and source-to-predictor flow. A passing synthetic evaluation proves that the pipeline executes, not that users become more active.
 
 For a real single-container smoke check (Docker running, internet on first model download, sufficient RAM):
 
@@ -280,7 +303,7 @@ Qwen runs through the open-source Ollama runtime; TabPFN inference runs in a loc
 
 Fresh weather, place queries, routes and map tiles require internet. Optional ElevenLabs is a hosted, proprietary service and may incur charges. Coordinates are sent to location providers; speech text/audio is sent to ElevenLabs when used. Local inference avoids per-request hosted-model fees, not hardware, electricity, hosting or optional API costs. The prototype has no account authentication, API rate limits or prospective evidence of behavior change.
 
-Gemma, Tinker, MongoDB Atlas and Tiger Data are not implemented. SerpAPI remains an optional legacy endpoint, not part of quest recommendations. Background music is not implemented. We use deterministic source adapters rather than an autonomous tool-calling agent.
+Gemma, Tinker, MongoDB Atlas and Tiger Data are not implemented. SerpAPI remains an optional endpoint, not part of quest recommendations. Background music is not implemented. We use deterministic source adapters rather than an autonomous tool-calling agent.
 
 ## Visual Credits
 

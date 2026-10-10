@@ -36,16 +36,13 @@ test("air quality retries only transient failures, coalesces requests and report
   } finally { store.close(); }
 });
 
-test("mood affects rule-based scoring, while unsupported errands and unverified venues are excluded", () => {
+test("mood is not added again during scoring and unsupported errands are excluded", () => {
   const candidates = buildCandidates(DEFAULT_PROFILE, context, facts);
   const eligible = filterCandidates(candidates, DEFAULT_PROFILE, context, facts).eligible;
   assert.ok(!eligible.some(q => ["library-return", "essential-top-up", "recycling-drop"].includes(q.template_id)));
   const score = mood => scoreCandidates(baselinePredictions(eligible, [], context), [], { ...context, mood }, DEFAULT_PROFILE);
-  const movement = rows => rows.find(q => !q.destination && q.template_id === "standing-pause");
-  const curiosity = rows => rows.find(q => !q.destination && q.template_id === "texture-hunt");
-  assert.equal(movement(score("restless")).components.moodFit, 0.06);
-  assert.equal(movement(score("curious")).components.moodFit, 0);
-  assert.equal(curiosity(score("curious")).components.moodFit, 0.06);
+  assert.deepEqual(score("restless"), score("curious"));
+  assert.ok(score("curious").every(q => !Object.hasOwn(q.components, "moodFit")));
   const rejects = filterCandidates(candidates, DEFAULT_PROFILE, context, facts).rejected;
   assert.ok(rejects.some(q => q.template_id === "library-return" && q.reasons.includes("book_return_not_requested")));
 });

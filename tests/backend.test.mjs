@@ -118,6 +118,79 @@ test("selection is diverse and logs the conditional probability for exploration"
   assert.equal(baselinePredictions(candidates.slice(0, 1), history, context)[0].liked_probability, 0.5);
 });
 
+test("TabPFN and hybrid scores average outcomes without profile, mood or place bonuses", () => {
+  for (const ranker of ["tabpfn", "hybrid"]) {
+    const q = { id: "q", template_id: "outdoor-sketch", quest_type: "creativity", ranker,
+      completion_probability: 0.8, liked_probability: 0.9 };
+    const [scored] = scoreCandidates([q], [], context, DEFAULT_PROFILE);
+    const [matched] = scoreCandidates([{ ...q, place_match: { group: "green" } }], [],
+      { ...context, goal: "creativity", mood: "curious" }, { ...DEFAULT_PROFILE, hobbies: ["art"] });
+    assert.equal(scored.score, 0.85);
+    assert.equal(matched.score, scored.score);
+    assert.equal(scored.scoring_mode, "outcome-average");
+    assert.deepEqual(scored.components, { completion: 0.4, enjoyment: 0.45, fallbackPreference: 0, repetitionPenalty: 0 });
+  }
+});
+
+test("baseline ranking uses explicit goal and hobby preferences, not provisional probabilities", () => {
+  const candidates = ["movement", "creativity", "social"].map((quest_type, i) => ({ id: String(i), template_id: String(i),
+    quest_type, ranker: "baseline", completion_probability: 0.99, liked_probability: 0.99 }));
+  const scores = scoreCandidates(candidates, [], context, { ...DEFAULT_PROFILE, hobbies: ["art"] });
+  assert.deepEqual(scores.map(q => q.score), [1, 0.75, 0.4]);
+  assert.ok(scores.every(q => q.scoring_mode === "preference-fallback" && q.components.completion === 0 && q.components.enjoyment === 0));
+  assert.deepEqual(scoreCandidates(candidates.map(q => ({ ...q, completion_probability: 0.01, liked_probability: 0.01 })), [],
+    context, { ...DEFAULT_PROFILE, hobbies: ["art"] }).map(q => q.score), scores.map(q => q.score));
+});
+
+test("repetition penalties apply once to both ranking modes with a 12-attempt window", () => {
+  for (const ranker of ["tabpfn", "baseline"]) {
+    const q = { id: "q", template_id: "walk", quest_type: "movement", ranker,
+      completion_probability: 0.8, liked_probability: 0.8 };
+    const score = (history, offers = []) => scoreCandidates([q], history, context, DEFAULT_PROFILE, offers)[0];
+    const original = score([]);
+    const repeated = score([{ template_id: "walk" }], ["walk"]);
+    assert.ok(Math.abs(repeated.components.repetitionPenalty - 0.23) < 1e-10);
+    assert.equal(repeated.score, Number((original.score - 0.23).toFixed(4)));
+    assert.equal(score([{ template_id: "walk" }, ...Array.from({ length: 12 }, () => ({ template_id: "other" }))]).score, original.score);
+  }
+});
+
+test("source facts filter first, then structured context reaches the predictor and scores are traced", async () => {
+  const store = createStore(":memory:", { consoleLogs: false });
+  let rankCalls = 0;
+  const sourceFacts = { ...facts, weather: { condition: "clear", temperature: 24, rainProbability: 5, daylight: true },
+    airQuality: { aqi: 96 }, places: [{ id: "park", kind: "park", name: "Actual Park", latitude: 12, longitude: 77,
+      route: { status: "live", data: { travelMinutes: 6 } } }] };
+  try {
+    const engine = createRecommender(store, { gather: async () => sourceFacts }, {
+      env: { TABPFN_URL: "http://ranker" }, random: () => 0.4,
+      fetchImpl: async (url, options) => {
+        if (!String(url).endsWith("/rank")) throw new Error("offline writer");
+        rankCalls++;
+        const payload = JSON.parse(options.body);
+        assert.equal(payload.context.temperature, 24);
+        assert.equal(payload.context.rain_probability, 5);
+        assert.equal(payload.context.mood, "tired");
+        assert.ok(!Object.hasOwn(payload.context, "location"));
+        assert.ok(!Object.hasOwn(payload.context, "note"));
+        assert.ok(payload.quests.every(q => q.duration <= context.minutes && q.physical_effort === "low"));
+        assert.ok(payload.quests.some(q => q.travel_minutes === 6));
+        return Response.json({ ranker: "tabpfn", quests: payload.quests.map(q => ({ id: q.id,
+          completion_probability: 0.8, liked_probability: 0.9 })) });
+      }
+    });
+    const result = await engine.recommend("user", context);
+    assert.equal(rankCalls, 1);
+    assert.ok(result.candidates.every(q => q.scoring_mode === "outcome-average" && q.score === 0.85));
+    assert.ok(result.quests.every(q => q.evidence.scoringMode === "outcome-average" && !q.evidence.reasons.some(r => r.kind === "mood")));
+    assert.ok(store.inspect("user").events.some(e => e.stage === "selection" && e.data.scores.every(q => q.scoringMode === "outcome-average")));
+    sourceFacts.airQuality.aqi = 201;
+    const blocked = await engine.recommend("user", context);
+    assert.equal(blocked.quests.length, 0);
+    assert.equal(rankCalls, 1);
+  } finally { store.close(); }
+});
+
 test("catalog has 120 distinct activities and respects real minimum time, daylight and dry-ground constraints", () => {
   assert.equal(ACTIVITY_CATALOG.length, 120);
   for (const key of ["id", "title", "action"]) assert.equal(new Set(ACTIVITY_CATALOG.map(a => a[key])).size, 120);
@@ -282,6 +355,8 @@ test("recommender reports fallback honestly, preserves candidate identity, and l
     const engine = createRecommender(store, { gather: async () => facts }, { fetchImpl: mockFetch, env: { TABPFN_URL: "http://ranker" }, random: () => 1 });
     const result = await engine.recommend("user", context);
     assert.equal(result.ranker, "baseline");
+    assert.ok(result.candidates.every(q => q.scoring_mode === "preference-fallback"));
+    assert.ok(result.quests.every(q => q.evidence.reasons.some(r => r.kind === "ranking" && r.source === "fallback policy")));
     assert.equal(result.source, "templates");
     assert.equal(result.quests.length, 3);
     assert.ok(result.quests.every(q => result.candidates.some(c => c.id === q.id)));

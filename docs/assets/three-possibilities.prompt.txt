@@ -1,0 +1,39 @@
+Generation mode: built-in image_gen tool, opaque background.
+Publication asset: three-possibilities.png.
+This is an AI-generated concept illustration, not an app screenshot or a field-test photograph.
+
+Use case: illustration-story.
+Asset type: landscape editorial figure for the Outbound outdoor-quest app's DEV challenge submission, approximately 1536 by 1024.
+Create a polished, inviting three-panel editorial image illustrating three small outdoor possibilities, NOT an actual app screenshot. The mood is human, accessible, motivating, and grounded in ordinary life. A clean near-white background, forest-green type, fresh leafy greens, restrained golden-yellow and sky-blue accents. Readable contemporary sans-serif lettering, ample margins, no gradient background, no glow, no ornate decoration.
+
+Top header: small bold "Outbound", then a prominent headline "Three possibilities. One small adventure."
+Supporting line: "Pick what fits today. Then put the screen away."
+
+Three equally sized vertical panels across the middle, each with a beautiful natural daylight photographic-style scene at the top and concise text beneath, subtle 8px corners at most.
+Left scene: an ordinary adult in casual clothing taking a short easy stroll on an accessible leafy public park path, phone put away, full real surroundings visible; a fresh green accent.
+Left exact text:
+"Easy Win"
+"A Little Reset"
+"12 min"
+"Take a familiar walk. Notice one new detail."
+
+Middle scene: an ordinary adult on a safe neighbourhood pavement looking at a small shop's posted hours near its entrance, no shopping bag required, no recognisable business logo or invented legible sign text; a warm golden accent.
+Middle exact text:
+"Useful Quest"
+"Tomorrow's Small Errand"
+"10 min"
+"Check a useful detail for tomorrow. No purchase needed."
+
+Right scene: close but not cropped awkwardly, an adult seated in a permitted public outdoor spot sketching an ordinary leaf on a notebook with a pencil, daylight greenery visible, calm creative activity; a sky-blue accent.
+Right exact text:
+"Stretch Quest"
+"A Tiny Outdoor Sketch"
+"12 min"
+"Bring paper and a pencil. Sketch something ordinary."
+
+Bottom line:
+"Choose one. Go outside. Come back with a story."
+Small but clear footer:
+"Illustrative quest examples | AI-generated concept image"
+
+Constraints: exactly three choices; no fourth panel; all text spelled exactly; no invented destination names, GPS coordinates, maps, weather readings, model scores, badges, streak counts, fake buttons or interface controls. Do not imply a real user completed these activities. Do not show screens or people using phones. No watermarks. Images should feel realistic, warm and outdoors, not futuristic, cartoonish, luxury travel, or stock fitness advertising.

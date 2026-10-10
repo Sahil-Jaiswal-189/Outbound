@@ -29,7 +29,6 @@ export function explainQuest(quest, { context, profile, history, facts, decision
   const reasons = [];
   const add = (kind, text, source) => reasons.push({ kind, text, source });
   add("time", `${quest.duration} minutes fits your ${context.minutes}-minute budget.`, "current settings");
-  if (quest.components.moodFit > 0) add("mood", `Your ${context.mood} setting favours this ${quest.quest_type} activity in the rule-based mood preference.`, "preference rule");
   add("energy", `${quest.physical_effort} physical effort fits your ${context.energy} energy setting and effort preference.`, "current settings / profile");
   if ((GOALS[context.goal] || []).includes(quest.quest_type)) add("goal", `Matches your ${context.goal} direction.`, "current goal");
   const hobbies = profile.hobbies.filter(h => HOBBIES[h] === quest.quest_type);
@@ -46,11 +45,13 @@ export function explainQuest(quest, { context, profile, history, facts, decision
   if (facts.weather) add("weather", `${facts.weather.condition}${Number.isFinite(facts.weather.temperature) ? `, ${facts.weather.temperature} C` : ""}; ${facts.weather.daylight === false ? "after dark" : facts.weather.daylight === true ? "daylight" : "daylight unknown"}${Number.isFinite(facts.weather.rainProbability) ? `; rain chance ${facts.weather.rainProbability}%` : ""}.`, "Open-Meteo forecast");
   if (facts.airQuality) add("air", `Modeled US AQI ${facts.airQuality.aqi}${Number.isFinite(facts.airQuality.pm25) ? `; PM2.5 ${facts.airQuality.pm25} micrograms/m3` : ""}. This is a regional model estimate, not a local sensor reading.`, "Open-Meteo / CAMS");
   else add("air", "Air quality is unavailable for this run; no claim about clean air is made.", "source status");
+  if (quest.scoring_mode === "outcome-average") add("ranking", `Ranking averages completion and liking estimates equally, then subtracts repetition penalties (${quest.ranker} predictions). Mood is a predictor input, not an extra scoring bonus.`, "scoring policy");
+  else if (quest.scoring_mode === "preference-fallback") add("ranking", "Neither target uses TabPFN in this run. Ranking uses explicit goal/hobby preferences minus repetition penalties; category-baseline probabilities are provisional and do not determine this score.", "fallback policy");
   if (decision?.decision === "explore") add("selection", "An exploration pick from a less-tried activity type, after feasibility checks.", "selection policy");
   else if (decision?.decision === "user_pick") add("selection", "You chose this activity; it passed the outing checks.", "your choice");
   else add("selection", "Selected among similarly scored feasible options; recent suggestions are avoided where alternatives exist.", "selection policy");
-  const summary = [reasons.find(r => r.kind === "place" && quest.destination), reasons.find(r => r.kind === "mood"),
+  const summary = [reasons.find(r => r.kind === "place" && quest.destination),
     reasons.find(r => r.kind === "goal"), reasons.find(r => r.kind === "time")].filter(Boolean).slice(0, 2).map(r => r.text).join(" ");
   return { summary, reasons, predictions: { completion: quest.completion_probability, enjoyment: quest.liked_probability,
-    engine: quest.ranker }, historyRows: similar.length, decision: decision?.decision || null };
+    engine: quest.ranker }, scoringMode: quest.scoring_mode, historyRows: similar.length, decision: decision?.decision || null };
 }

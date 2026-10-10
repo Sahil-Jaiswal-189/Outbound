@@ -3,11 +3,11 @@ import { validateContext } from "./sources.mjs";
 import { inputError } from "./store.mjs";
 import { ACTIVITY_CATALOG } from "./catalog.mjs";
 import { matchPlaceActivities, placedActivitySteps } from "./place-matching.mjs";
-import { GOALS, HOBBIES, moodFit, intentReason, NEEDS_DESTINATION } from "./activity-policy.mjs";
+import { GOALS, HOBBIES, intentReason, NEEDS_DESTINATION } from "./activity-policy.mjs";
 import { destinationAvailability, explainQuest, rememberedPreparation } from "./explanations.mjs";
 import { requestTimeout } from "./runtime-config.mjs";
 
-const POLICY_VERSION = "tabpfn-grounded-slate-v4";
+const POLICY_VERSION = "tabpfn-outcomes-slate-v5";
 const effort = { none: 0, low: 1, medium: 2, high: 3 };
 
 export function buildCandidates(profile, context, facts, placeMatches = matchPlaceActivities(facts.places || [], context).matches) {
@@ -89,15 +89,17 @@ export function scoreCandidates(candidates, history, context, profile, recentOff
   return candidates.map(q => {
     const matchedGoal = (GOALS[context.goal] || []).includes(q.quest_type);
     const hobbyMatch = profile.hobbies.some(h => HOBBIES[h] === q.quest_type);
-    const benefit = matchedGoal ? 1 : hobbyMatch ? 0.75 : 0.4;
+    const predicted = ["tabpfn", "hybrid"].includes(q.ranker);
+    const preference = matchedGoal ? 1 : hobbyMatch ? 0.75 : 0.4;
     const recent = history.slice(-12);
     const repeated = recent.some(row => row.template_id === q.template_id);
-    const components = { completion: 0.4 * q.completion_probability, enjoyment: 0.35 * q.liked_probability,
-      goalAlignment: 0.25 * benefit, placeFit: q.place_match && (matchedGoal || hobbyMatch) ? 0.04 : 0,
-      moodFit: moodFit(q, context.mood) ? 0.06 : 0,
+    // Fully baseline runs use explicit preferences, not an additional bonus on model scores.
+    const components = { completion: predicted ? 0.5 * q.completion_probability : 0,
+      enjoyment: predicted ? 0.5 * q.liked_probability : 0,
+      fallbackPreference: predicted ? 0 : preference,
       repetitionPenalty: (repeated ? 0.15 : 0) + (recentOffers.includes(q.template_id) ? 0.08 : 0) };
-    return { ...q, benefit_signal: benefit, components,
-      score: Number((components.completion + components.enjoyment + components.goalAlignment + components.placeFit + components.moodFit - components.repetitionPenalty).toFixed(4)) };
+    return { ...q, scoring_mode: predicted ? "outcome-average" : "preference-fallback", components,
+      score: Number((components.completion + components.enjoyment + components.fallbackPreference - components.repetitionPenalty).toFixed(4)) };
   }).sort((a, b) => b.score - a.score);
 }
 
@@ -119,7 +121,10 @@ export function selectSlate(candidates, history, { random = Math.random, epsilon
     if (local.length) pool = local;
     const novel = pool.filter(q => !recentOffers.includes(q.template_id));
     if (novel.length) pool = novel;
-    const preferred = slot === 0 && preferredTemplate ? remaining.find(q => q.template_id === preferredTemplate) : null;
+    const preferred = slot === 0 && preferredTemplate
+      ? remaining.find(q => q.template_id === preferredTemplate && q.destination)
+        || remaining.find(q => q.template_id === preferredTemplate)
+      : null;
     if (preferred) pool = [preferred];
     const bestScore = Math.max(...pool.map(q => q.score));
     const exploitationPool = pool.filter(q => q.score >= bestScore - 0.02);
@@ -236,7 +241,7 @@ export function createRecommender(store, sources, { fetchImpl = fetch, env = pro
     const slate = selectSlate(scored, history, { random, recentOffers, preferredTemplate });
     log("selection", { policyVersion: POLICY_VERSION, decisions: slate.decisions,
       scores: scored.map(q => ({ candidateId: q.id, templateId: q.template_id, placeId: q.destination?.id || null, score: q.score,
-        completion: q.completion_probability, enjoyment: q.liked_probability, components: q.components })) });
+        scoringMode: q.scoring_mode, completion: q.completion_probability, enjoyment: q.liked_probability, components: q.components })) });
     const attempts = store.attempts(userId);
     const memories = attempts.filter(a => a.note && (a.context?.goal === context.goal
       || slate.selected.some(q => q.quest_type === a.quest.quest_type))).slice(-4).map(a => a.note);

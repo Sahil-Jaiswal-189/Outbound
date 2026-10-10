@@ -126,7 +126,8 @@ test("selection ranks local opportunities but never repeats an activity or desti
   const candidates = buildCandidates(DEFAULT_PROFILE, context, facts);
   const filtered = filterCandidates(candidates, DEFAULT_PROFILE, context, facts);
   const scored = scoreCandidates(baselinePredictions(filtered.eligible, [], context), [], context, DEFAULT_PROFILE);
-  assert.ok(scored.some(q => q.destination && q.components.placeFit === 0.04));
+  assert.ok(scored.some(q => q.destination));
+  assert.ok(scored.every(q => !Object.hasOwn(q.components, "placeFit")));
   const slate = selectSlate(scored, [], { random: () => 0.4 });
   assert.equal(slate.selected.length, 3);
   assert.equal(new Set(slate.selected.map(q => q.template_id)).size, 3);

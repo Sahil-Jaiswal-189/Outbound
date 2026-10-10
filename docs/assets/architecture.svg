@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1180" viewBox="0 0 1680 1180" role="img" aria-labelledby="title description">
   <title id="title">Outbound architecture</title>
-  <desc id="description">A browser sends context to Node. In one self-hosted container, Node stores SQLite history, asks Python TabPFN for outcome predictions, selects feasible quests, and uses Ollama Qwen for wording. External sources supply weather, places and routes. Optional ElevenLabs supplies voice. Reflections return to SQLite, not model fine-tuning.</desc>
+  <desc id="description">Node uses profile and external facts to filter feasible quests. TabPFN predicts completion and liking from 13 features and past outcomes. Selection averages model/hybrid probabilities minus repetition, or uses an explicit goal/hobby fallback when neither target is modeled. Qwen writes after selection. SQLite stores feedback, not model fine-tuning.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#53716c"/></marker>
     <style>
@@ -33,8 +33,8 @@
     <text x="712" y="269" class="body">TabPFN or honest baseline</text>
     <rect x="1000" y="164" width="272" height="130" rx="8" fill="#fdebf0" stroke="#edc6d3"/>
     <text x="1024" y="205" class="name">4. Choose</text>
-    <text x="1024" y="239" class="body">Goals, novelty, diversity</text>
-    <text x="1024" y="269" class="body">Limited exploration</text>
+    <text x="1024" y="239" class="body">50/50 outcomes - repeats</text>
+    <text x="1024" y="269" class="body">Fallback: goal / hobby fit</text>
     <rect x="1312" y="164" width="304" height="130" rx="8" fill="#e4f3eb" stroke="#bfd9c9"/>
     <text x="1336" y="205" class="name">5. Encourage</text>
     <text x="1336" y="239" class="body">Qwen wording, fixed facts</text>
@@ -56,7 +56,7 @@
   <rect x="444" y="454" width="360" height="160" rx="8" fill="#e8f3f7" stroke="#c0dce7"/>
   <text x="468" y="497" class="name">Node HTTP API</text>
   <text x="468" y="534" class="body">Storage + specialist adapters</text>
-  <text x="468" y="564" class="body">Filters + slate selection</text>
+  <text x="468" y="564" class="body">Filter, score, varied selection</text>
   <text x="468" y="594" class="small">Browser UI served here too</text>
 
   <rect x="850" y="454" width="366" height="160" rx="8" fill="#e4f3eb" stroke="#bfd9c9"/>
@@ -76,8 +76,8 @@
   <text x="468" y="825" class="small">Internal: 127.0.0.1:8008</text>
   <text x="850" y="749" class="name">Validation before promotion</text>
   <text x="850" y="787" class="body">Chronological holdout vs baseline</text>
-  <text x="850" y="819" class="body">Missing enjoyment stays missing</text>
-  <text x="850" y="851" class="small">No fine-tuning after each attempt</text>
+  <text x="850" y="819" class="body">No extra mood / place bonuses</text>
+  <text x="850" y="851" class="small">Diversity + limited exploration</text>
 
   <path class="line" marker-start="url(#arrow)" d="M403 525 H438"/>
   <path class="line" marker-start="url(#arrow)" d="M809 525 H844"/>

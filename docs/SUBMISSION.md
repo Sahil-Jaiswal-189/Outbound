@@ -12,8 +12,8 @@ tags: devchallenge, hf26challenge, ai, opensource
 
 That is the idea behind **Outbound**: a small, gamified outdoor quest app built around local, open-weight AI. Not an infinite feed. Not another chatbot to keep talking to. Just a little help choosing something worth doing in the real world.
 
-![Outbound's actual desktop interface, showing the outdoor banner and quick outing controls](./assets/home.png)
-*Figure 1. A starting point, not a destination: the actual Outbound interface with automated demo state.*
+![Outbound's actual homepage, with outing controls on the left and three quest possibilities in the right-hand column](./assets/home.png)
+*Figure 1. Three possibilities alongside your outing settings. Actual application UI with automated demo state and controlled place/source fixtures, not a live outdoor session.*
 
 You start with interests, goals, things you dislike, and a few practical reminders. Before an outing, you tell Outbound how much time you have, how you feel, your energy level, and optionally your starting point.
 
@@ -98,7 +98,11 @@ Cold start uses a smoothed category baseline. Each target needs enough varied la
 
 ### 🎲 Selection balances relevance with variety
 
-The recommendation engine combines outcome estimates with goal alignment, bounded mood/place bonuses, and repetition penalties. It creates a diverse slate, avoids recently offered activities when alternatives remain, and uses limited epsilon-greedy exploration in the third slot.
+The responsibilities are deliberately separate: **the backend filters; TabPFN predicts; the policy selects; Qwen writes.** When at least one target uses validated TabPFN, ranking averages completion and liking estimates equally, then subtracts repetition penalties. There are no extra mood, goal or place bonuses layered on top. Hybrid mode keeps a baseline estimate for the unpromoted target.
+
+When neither target uses TabPFN, a clearly labeled rule-based fallback ranks current-goal and supported hobby matches instead. The lab distinguishes this preference fallback from outcome-average scoring. Places and air quality still matter for candidate construction and suitability; they do not become extra prediction bonuses. Hobbies and raw place categories are not yet model features.
+
+Selection creates a diverse slate, avoids recently offered activities when alternatives remain, and uses limited epsilon-greedy exploration in the third slot. Feasible named-place candidates remain preferred in the first slot, as a selection constraint rather than a score bonus.
 
 That policy is inspectable code, not a separately trained reinforcement-learning model. It records its candidate pools and conditional selection probabilities. The probabilities describe the app's selection, not a causal estimate of what an activity will do for someone.
 
@@ -109,15 +113,15 @@ That policy is inspectable code, not a separately trained reinforcement-learning
 New feedback becomes context for future predictions and relevant reminders. **We do not fine-tune Qwen or TabPFN weights after every quest.**
 
 ![The recommendation lab showing saved context, selected quests, scores, and place matching](./assets/lab.png)
-*Figure 5. The lab makes the decision process inspectable. This screenshot uses a controlled visual fixture; actual model execution is checked separately.*
+*Figure 5. The lab distinguishes outcome-average scoring from an explicit preference fallback, with base scores and repetition penalties. This screenshot shows the fallback using a controlled visual fixture; actual model execution is checked separately.*
 
-### 🛠️ A small reliability lesson
+### 🛠️ Built to Be Trusted
 
-Public Overpass servers sometimes respond too slowly. The HTTP wait is now thirty-five seconds per endpoint, with fifteen seconds allowed for query execution. Existing bounded failover, request coalescing, a thirty-second failed-query cooldown, and a twenty-four-hour cache remain in place. This does not guarantee a response; failed lookups are reported honestly and do not become fabricated facts.
+**A quest should come with evidence, not just reassuring language.** Named destinations need a mapped place, a successful walking estimate, and enough time for the activity and return. When a provider or model is unavailable, Outbound reports it and uses the appropriate cached-data, baseline, or template fallback. Missing information never becomes an invented destination.
 
-The all-in-one Docker image uses Supervisor, internal-only model ports, non-root application workers, and a persistent disk for SQLite and model caches. A web liveness check is deliberately different from model readiness.
+**Your progress should survive the app restarting.** The single-container deployment preserves SQLite history and model caches on its persistent disk. Supervisor restarts crashed workers, while the model services stay internal and only the web API is exposed publicly.
 
-✅ Verification covers **30 backend tests, 13 Python tests, and 26 desktop/mobile browser tests**. A separate container smoke check exercises real Qwen generation, actual TabPFN evaluation, worker restart, and persistence across redeployment. Synthetic tests validate mechanics, not real-world behavior change.
+✅ **Checked beyond mock responses:** 75 automated tests cover the backend, Python predictor, and desktop/mobile workflows. A separate container smoke test is available to run real Qwen generation and TabPFN evaluation, kill a worker to check recovery, and verify that saved history survives a fresh-container redeploy. That container test passed before this scoring refactor; it has not been rerun against the revised policy.
 
 ## Why Does Open Innovation Matter?
 
@@ -144,6 +148,7 @@ That is where this approach fits better than a closed inference-only integration
 - 📊 **Best Use of TabPFN:** local completion/enjoyment prediction, per-target chronological validation, and explicit baseline/hybrid/model modes.
 - 🎙️ **Best Use of ElevenLabs:** optional quest read-aloud, friendly reward speech, and reflection transcription.
 - 🚀 **Best Use of Render:** the supplied public demo is hosted on Render; the repository also packages the complete self-hosted runtime in one Docker service. The local container checks are not a claim about the currently deployed service's model readiness.
+- 💻 **Best Use of GitHub Copilot:** used GitHub Copilot during the development of Outbound.
 
 🌿 **The ambition is small on purpose: make one real-world action easier to choose today.**
 

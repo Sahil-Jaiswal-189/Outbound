@@ -19,7 +19,11 @@ flowchart TD
   Candidates --> Filter[Time / effort / preference / conditions filters]
   Filter --> Predictor[Python TabPFN outcome predictor]
   DB --> Predictor
-  Predictor --> Score[Goal alignment and repetition scoring]
+  Predictor --> Mode{Any validated TabPFN target?}
+  Mode -->|Yes: TabPFN or hybrid| Average[50/50 completion and liking]
+  Mode -->|No: baseline| Fallback[Explicit goal/hobby preference fallback]
+  Average --> Score[Subtract repetition penalty]
+  Fallback --> Score
   Score --> Select[Constrained epsilon-greedy slate]
   Select --> Qwen[Local Qwen copy]
   Qwen --> Deck[Up to three quests]
@@ -54,7 +58,7 @@ Flexible documents use JSON columns; queryable outcome fields have dedicated col
 
 A random persistent HttpOnly, SameSite=Strict cookie is the local workspace capability. API responses are not cached, and cross-origin writes are rejected. HTTPS deployments use secure cookies and the configured public origin (Render's URL by default). This is not production authentication. Local Node defaults to localhost; Docker exposes Node and requires operational access controls for public use.
 
-The bootstrap endpoint imports valid legacy browser attempts once, in a transaction. Later refreshes read SQLite instead of reimporting stale browser state. Feedback uses the saved started attempt, so a caller cannot replace its quest or context. Feedback retries update the same row.
+The bootstrap endpoint imports valid browser-stored attempts once, in a transaction. Later refreshes read SQLite instead of reimporting stale browser state. Feedback uses the saved started attempt, so a caller cannot replace its quest or context. Feedback retries update the same row.
 
 Unselected quests have no outcome labels. Started-but-unfinished quests are stored for inspection and excluded from model history. Partial and skipped are distinct statuses; full completion is the current binary prediction target. Enjoyment and benefit can be null.
 
@@ -85,24 +89,34 @@ Named destination candidates reserve two minutes beyond travel and on-site activ
 
 Filtering considers available time, physical/social comfort, low energy, supported explicit note constraints, dislikes, darkness for destination quests, and severe available conditions. Arbitrary natural-language constraints are not fully understood; the small explicit matcher is intentionally limited.
 
-TabPFN returns completion and enjoyment estimates for every eligible candidate. The backend computes:
+The predictor returns completion and liking estimates for every eligible candidate, plus an honest `tabpfn`, `hybrid` or `baseline` mode. Policy `tabpfn-outcomes-slate-v5` separates prediction-based ranking from the fully baseline fallback.
+
+When at least one target uses validated TabPFN (`tabpfn` or `hybrid`), the backend computes:
 
 ```text
-score = 0.40 * completion_probability
-      + 0.35 * liked_probability
-      + 0.25 * goal_alignment
-      + place_fit_bonus
-      + mood_fit_bonus
+score = 0.50 * completion_probability
+      + 0.50 * liked_probability
       - repetition_penalty
 ```
 
-Goal alignment is a rules-based signal, not an inferred causal benefit. A stable template ID receives a 0.15 penalty if attempted among the last 12 feedback rows, plus 0.08 if displayed in the last eight recommendation slates. Display history is read separately from outcome labels: an unchosen quest is not counted as a failure. The weights are initial product settings, not scientifically established optima.
+Hybrid mode averages the validated target with the other target's baseline probability. No extra goal, hobby, mood or place bonuses are added. Mood, current goal, weather, duration and travel are already predictor inputs; the policy does not assume how strongly TabPFN uses them. Exact places and profile hobbies are not predictor features.
 
-Place fit adds 0.04 only for a verified-route/catalog match whose activity type aligns with the selected goal or supported profile hobby. This is a bounded product heuristic, not a model prediction or causal estimate. TabPFN sees the actual travel and total duration through its existing features; it does not receive exact destination coordinates.
+When neither target uses TabPFN, ranking switches to an explicit rule-based fallback:
 
-Mood fit adds 0.06 for supported rule-based category/effort matches. Tired/anxious settings favour gentle, low-social activities; restless favours movement; bored/curious favour noticing and creative activities. These are inspectable preference rules, not clinical judgments. Intent and verified-destination gates apply to generic candidates too, so the generic catalog cannot bypass an unrequested book return or invent a nearby garden.
+```text
+preference = 1.00 if activity type matches the current goal
+             0.75 otherwise if it matches a supported profile hobby
+             0.40 otherwise
+score = preference - repetition_penalty
+```
 
-The first slot favours low-effort, nonsocial activities. Subsequent slots favour different categories when available. Within each eligible pool, recently displayed activities are excluded when alternatives remain. Exploitation samples uniformly among candidates within 0.02 of the highest score, avoiding catalog-order bias. The third slot uses epsilon=0.15 to explore among the least-tried remaining categories. If the user picks a library activity, the first slot is reserved for it only after all safety/time filters pass; its conditional probability is 1. The lanes are presentation labels, not a promise that the third activity is physically harder.
+Baseline probabilities remain available for inspection but are not used in this fallback ranking. The fallback applies during cold start, failed validation, missing configuration or model failure when both targets are baseline. It is not learned personalization. Mood is still recorded and supplied to the predictor; there is no standalone mood-score rule in either path. Profile comfort/dislikes and supported current constraints remain eligibility rules. Intent and required-destination gates also apply to generic candidates.
+
+A stable template ID receives a 0.15 penalty if attempted among the last 12 feedback rows, plus 0.08 if displayed in the last eight recommendation slates. Display history is read separately from outcome labels: an unchosen quest is not counted as a failure. The score is a ranking value, not a probability. Equal outcome weights, fallback preferences and penalty sizes are initial product settings, not scientifically established optima.
+
+Candidates store `scoring_mode` (`outcome-average` or `preference-fallback`) and contributions for completion, enjoyment, fallback preference and repetition. Selection events persist these components. The run summary records the policy version; saved scores are not rewritten.
+
+The first slot favours low-effort, nonsocial activities. Subsequent slots favour different categories when available. Within each eligible pool, recently displayed activities are excluded when alternatives remain. Exploitation samples uniformly among candidates within 0.02 of the highest score, avoiding catalog-order bias. The third slot uses epsilon=0.15 to explore among the least-tried remaining categories. If the user picks a catalog activity, the first slot is reserved for it only after all safety/time filters pass; its conditional probability is 1. An eligible named-place variant of that template is preferred over the generic version explicitly, without relying on a place-score bonus. The lanes are presentation labels, not a promise that the third activity is physically harder.
 
 Candidates for an already chosen template or named destination are excluded from subsequent slots. This prevents a local activity and its generic version appearing together, or three nominally different tasks at the same place.
 
@@ -143,7 +157,7 @@ ElevenLabs is independent of ranking and optional. Local reward sounds and brows
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| POST | /api/bootstrap | One-time legacy import; load authoritative profile/history |
+| POST | /api/bootstrap | One-time browser-data import; load authoritative profile/history |
 | POST | /api/profile | Validate and persist profile |
 | POST | /api/generate | Recommend using stored personal history |
 | GET | /api/activities | Full browsable 120-activity catalog |
@@ -156,7 +170,7 @@ ElevenLabs is independent of ranking and optional. Local reward sounds and brows
 | POST | /api/location/reverse | Cached ORS/Pelias area name for a selected pin or GPS point |
 | POST | /api/location/conditions | Cached weather/AQI preview for the selected point; no routing |
 | GET | /api/status | Database/source/model configuration and service health |
-| POST | /api/context | Legacy optional SerpAPI query; not part of recommendations |
+| POST | /api/context | Optional SerpAPI query; not part of recommendations |
 | POST | /api/reward | Friendly reward copy |
 | POST | /api/speak | Optional ElevenLabs speech |
 | POST | /api/transcribe | Optional ElevenLabs note transcription |

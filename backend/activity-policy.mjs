@@ -8,15 +8,6 @@ export const HOBBIES = {
   music: "creativity", art: "creativity", food: "errand", sports: "movement"
 };
 
-// Transparent preference rules, not clinical claims or learned mood effects.
-export function moodFit(quest, mood) {
-  const gentle = ["none", "low"].includes(quest.physical_effort) && ["none", "low"].includes(quest.social_effort);
-  if (["tired", "anxious"].includes(mood)) return gentle && ["nature", "movement", "creativity"].includes(quest.quest_type);
-  if (mood === "restless") return quest.quest_type === "movement";
-  if (["bored", "curious"].includes(mood)) return ["curiosity", "nature", "creativity"].includes(quest.quest_type);
-  return false;
-}
-
 const shopping = new Set(["essential-top-up", "pantry-list-walk", "market-list", "price-compare", "refill-check"]);
 export function intentReason(activityId, note = "") {
   if (shopping.has(activityId) && (/\b(no shopping|no purchases|don't buy|do not buy|avoid shopping|no spending)\b/i.test(note)

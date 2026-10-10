@@ -32,13 +32,28 @@ test("destination quests and lab show actual activity-place matches and timing",
       { preferredTemplate: "outdoor-sketch" });
     await page.route("**/api/generate", route => route.fulfill({ json: result }));
     await page.route("**/api/lab?*", route => route.fulfill({ json: { ...store.inspect("visual-fixture"), workspace: "demo" } }));
+    await page.route("**/api/location/reverse", route => route.fulfill({ json: {
+      status: "live", area: "Sampangiram Nagar, Bengaluru, India"
+    } }));
+    await page.addInitScript(() => {
+      navigator.geolocation.getCurrentPosition = success => success({ coords: { latitude: 12.97, longitude: 77.59, accuracy: 100 } });
+    });
     await page.goto("/");
     await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("radio", { name: "30m", exact: true }).check();
+    await page.getByRole("radio", { name: "Creativity", exact: true }).check();
+    await page.getByRole("button", { name: "Use current location", exact: true }).click();
+    await expect(page.locator(".location-status")).toContainText("Sampangiram Nagar");
     await page.getByRole("button", { name: "Generate 3 quests", exact: true }).click();
     await expect(page.locator(".quest-card")).toHaveCount(3);
     await expect(page.locator(".quest-card").first().locator(".quest-destination")).toContainText("Neighbourhood Green");
     await expect(page.locator(".quest-card").first().locator(".quest-destination")).toContainText("6m walking round trip");
     await expect(page.locator(".quest-card").first().locator(".quest-destination")).toContainText("Access and opening hours unverified");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator(".outing-banner img")).toBeVisible();
+    await expect.poll(() => page.locator(".outing-banner img").evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(page.locator(".toast")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath("home-deck.png"), fullPage: true });
     await page.locator(".quest-card").first().getByText("Why this quest", { exact: true }).click();
     await expect(page.locator(".quest-card").first().locator(".quest-rationale")).toContainText("Modeled US AQI 96");
     await expect(page.locator(".quest-card").first().locator(".quest-rationale")).toContainText("creativity direction");
@@ -51,6 +66,12 @@ test("destination quests and lab show actual activity-place matches and timing",
     await expect(page.locator(".run-summary")).toContainText("Sampangiram Nagar");
     await expect(page.locator(".run-summary")).not.toContainText("Sample place");
     await expect(page.getByLabel("Mood", { exact: true })).toBeVisible();
+    const scores = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Scoring", exact: true }) });
+    await expect(scores).toContainText("Preference fallback");
+    await expect(scores.getByRole("columnheader", { name: "Mood fit", exact: true })).toHaveCount(0);
+    await expect(scores.getByRole("columnheader", { name: "Place fit", exact: true })).toHaveCount(0);
+    await page.getByRole("heading", { name: "Candidate scores", exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("scoring-lab.png") });
     await page.getByRole("heading", { name: "Destination candidates", exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath("destination-lab.png") });
     await page.getByRole("heading", { name: "Data sources", exact: true }).scrollIntoViewIfNeeded();
@@ -59,6 +80,46 @@ test("destination quests and lab show actual activity-place matches and timing",
     await expect(sourceTable).toContainText("Neighbourhood Library / 8m walking round trip");
     await expect(sourceTable).toContainText("Modeled US AQI 96");
     await page.screenshot({ path: testInfo.outputPath("source-evidence.png") });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(errors).toEqual([]);
+  } finally { store.close(); }
+});
+
+test("lab displays outcome-average and hybrid scores and handles saved records without a scoring mode", async ({ page }) => {
+  const store = createStore(":memory:", { consoleLogs: false });
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  try {
+    const engine = createRecommender(store, { gather: async () => ({ weather: null, airQuality: null, sources: [], places: [] }) }, {
+      env: { TABPFN_URL: "http://fixture" }, random: () => 0.4,
+      fetchImpl: async (url, options) => {
+        if (!String(url).endsWith("/rank")) throw new Error("offline writer");
+        const payload = JSON.parse(options.body);
+        return Response.json({ ranker: "tabpfn", quests: payload.quests.map(q => ({ id: q.id,
+          completion_probability: 0.8, liked_probability: 0.9 })) });
+      }
+    });
+    await engine.recommend("scoring-fixture", { minutes: 20, energy: "low", mood: "tired", goal: "fitness" });
+    const snapshot = { ...store.inspect("scoring-fixture"), workspace: "demo" };
+    await page.route("**/api/lab?*", route => route.fulfill({ json: snapshot }));
+    await page.goto("/");
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("button", { name: "Recommendation lab", exact: true }).click();
+    const scores = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Scoring", exact: true }) });
+    await expect(scores).toContainText("Outcome average");
+    await expect(scores).toContainText("0.850");
+    await expect(scores).not.toContainText("Preference fallback");
+    snapshot.latestRecommendation.ranker = "hybrid";
+    snapshot.latestRecommendation.candidates.forEach(q => { q.ranker = "hybrid"; });
+    await page.getByRole("button", { name: "Refresh records", exact: true }).click();
+    await expect(page.locator(".run-summary")).toContainText("hybrid");
+    await expect(scores).toContainText("Outcome average");
+    snapshot.latestRecommendation.policyVersion = "tabpfn-grounded-slate-v4";
+    snapshot.latestRecommendation.candidates.forEach(q => { delete q.scoring_mode; });
+    await page.getByRole("button", { name: "Refresh records", exact: true }).click();
+    await expect(scores.getByRole("row").nth(1).getByRole("cell").nth(5)).toHaveText("-");
+    await expect(page.locator(".run-summary")).toContainText("tabpfn-grounded-slate-v4");
+    await expect(scores).not.toContainText("Outcome average");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
   } finally { store.close(); }
