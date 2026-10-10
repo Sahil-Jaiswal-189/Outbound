@@ -24,6 +24,8 @@ Screenshots use automated demo data. Named places and source readings in the vis
 
 ## Architecture at a Glance
 
+For a plain-language overview, see [how Outbound chooses an outing](./docs/assets/how-it-works-visual.png) and the [submission narrative](./docs/SUBMISSION.md). The diagram below is the more detailed runtime view.
+
 ![Outbound architecture: one self-hosted container, structured external facts and a feedback loop](./docs/assets/architecture.png)
 
 | Component | Responsibility |
@@ -294,6 +296,8 @@ node scripts/build-post-assets.mjs
 ```
 
 The script copies verified UI screenshots and renders the architecture SVG and mobile workflow figure into `docs/assets/`; it does not alter application data.
+
+Figure 6 in the submission uses a separate real-model capture: `node scripts/capture-model-lab.mjs`. It runs CPU TabPFN v2 on 120 synthetic outings in an in-memory workspace and saves the screenshot plus validation/score evidence. Local Python dependencies and Chromium are required; the first run downloads the checkpoint. It does not modify personal history or prove real-world effectiveness. See [publishing instructions](./docs/PUBLISHING.md) for details.
 
 ## Open Components and Limits
 

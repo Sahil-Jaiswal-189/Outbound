@@ -1,0 +1,31 @@
+Generated with the built-in image generation tool. Labels and arrow directions reviewed against the current recommendation implementation.
+
+Create ONE simple, beautiful, easy-to-read flowchart image for Outbound, an outdoor quest app. Landscape, white background, dark charcoal typography, restrained green, blue and amber accents. Professional clean diagram-editor style. No dense paragraphs, extra diagrams, gradients, fake logos or decorative backgrounds. Large readable labels, clear arrows, generous spacing.
+
+Title: "How Outbound chooses a quest"
+
+A single main left-to-right flow of five compact nodes, with short labels:
+1. "Your day + local facts"
+Small text: "Profile, time, mood, weather, places"
+2. "Filter quests"
+Small text: "Keep what is suitable and feasible"
+3. "TabPFN"
+Small text: "Predict completion + liking"
+4. "Select three"
+Small text: "Average predictions − repetition"
+Small second line: "Keep variety"
+5. "Qwen"
+Small text: "Add friendly wording"
+
+A clear arrow from Qwen ends at an unframed label: "Choose one. Go outside."
+
+Under the main flow place ONE small database node labeled "SQLite: past outings + feedback".
+A thin arrow FROM this database TO TabPFN is labeled "Past examples".
+A thin return arrow FROM "Choose one. Go outside." TO the database is labeled "Your reflection".
+No overlapping or ambiguous arrows.
+
+Directly above the arrow from filtering to TabPFN put a small label "Selected context + quest features", not all raw data. No air quality or place names claimed as model features.
+One short footer note: "If TabPFN is not ready, goal/hobby fit guides ranking instead."
+Second short footer note: "Qwen changes the wording, not the selected facts."
+
+This is ONE unified flowchart, not a collection of panels or several diagrams. Keep content concise and exact. No additional text or claims. Render all text clearly and all nodes and arrows with plenty of space.

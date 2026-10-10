@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1180" viewBox="0 0 1680 1180" role="img" aria-labelledby="title description">
+  <title id="title">How Outbound helps you choose an outing</title>
+  <desc id="description">Your settings and real-world sources help the backend filter suitable quests. Past outings help TabPFN estimate completion and liking. Selection averages those estimates minus repetition, or uses goals and hobbies when no TabPFN prediction is active. Qwen adds friendly wording after selection. Choose one, go outside, then save feedback for next time.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#45685c"/></marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #183b33; letter-spacing: 0; }
+      .heading { font-size: 44px; font-weight: 700; }
+      .subtitle { font-size: 24px; fill: #526762; }
+      .name { font-size: 26px; font-weight: 700; }
+      .body { font-size: 21px; fill: #405d55; }
+      .small { font-size: 20px; fill: #526762; }
+      .line { fill: none; stroke: #45685c; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1680" height="1180" fill="#f8fbfa"/>
+  <text x="64" y="79" class="heading">Outbound: a little help getting outside</text>
+  <text x="64" y="121" class="subtitle">Check what fits. Offer three possibilities. Let the real world take over.</text>
+
+  <g data-panel="inputs">
+    <rect x="64" y="175" width="744" height="150" rx="8" fill="#e8f3f7" stroke="#c0dce7"/>
+    <text x="88" y="220" class="name">Your day + the world around you</text>
+    <text x="88" y="263" class="body">Time, energy, mood, preferences and starting point</text>
+    <text x="88" y="295" class="body">Weather, air quality, nearby places and walking times</text>
+  </g>
+  <g data-panel="history">
+    <rect x="864" y="175" width="752" height="150" rx="8" fill="#fdebf0" stroke="#edc6d3"/>
+    <text x="888" y="220" class="name">Your previous outings</text>
+    <text x="888" y="263" class="body">What you tried, completed and liked, with the outing details</text>
+    <text x="888" y="295" class="body">SQLite remembers; the predictor uses these examples</text>
+  </g>
+  <path class="line" d="M436 325 V360 H236 V409"/>
+  <path class="line" d="M1240 325 V360 H636 V409"/>
+
+  <g data-panel="filter">
+    <rect x="64" y="415" width="344" height="230" rx="8" fill="#e8f3f7" stroke="#c0dce7"/>
+    <text x="88" y="460" class="name">1. Check what fits</text>
+    <text x="88" y="502" class="body">Time, effort and preferences</text>
+    <text x="88" y="534" class="body">Weather, air quality, daylight</text>
+    <text x="88" y="566" class="body">Real places + feasible travel</text>
+    <text x="88" y="611" class="small">Only suitable quests pass on</text>
+  </g>
+  <g data-panel="predict">
+    <rect x="464" y="415" width="344" height="230" rx="8" fill="#fff5db" stroke="#ead99e"/>
+    <text x="488" y="460" class="name">2. Estimate your fit</text>
+    <text x="488" y="502" class="body">Completion + liking chances</text>
+    <text x="488" y="534" class="body">Mood, weather, quest details</text>
+    <text x="488" y="566" class="body">Travel time + past outcomes</text>
+    <text x="488" y="611" class="small">TabPFN, when its checks pass</text>
+  </g>
+  <g data-panel="select">
+    <rect x="864" y="415" width="344" height="230" rx="8" fill="#fdebf0" stroke="#edc6d3"/>
+    <text x="888" y="460" class="name">3. Choose three</text>
+    <text x="888" y="502" class="body">Half completion + half liking</text>
+    <text x="888" y="534" class="body">Subtract repetition penalties</text>
+    <text x="888" y="566" class="body">Keep the choices varied</text>
+    <text x="888" y="611" class="small">Fallback: goal / hobby fit</text>
+  </g>
+  <g data-panel="write">
+    <rect x="1264" y="415" width="352" height="230" rx="8" fill="#e4f3eb" stroke="#bfd9c9"/>
+    <text x="1288" y="460" class="name">4. Add friendly words</text>
+    <text x="1288" y="502" class="body">Titles and reflection prompts</text>
+    <text x="1288" y="534" class="body">Encouragement after outings</text>
+    <text x="1288" y="566" class="body">Selected facts stay unchanged</text>
+    <text x="1288" y="611" class="small">Ollama / Qwen2.5:3b</text>
+  </g>
+  <path class="line" d="M408 530 H458"/>
+  <path class="line" d="M808 530 H858"/>
+  <path class="line" d="M1208 530 H1258"/>
+
+  <text x="64" y="717" class="name">A new user still gets a useful starting point.</text>
+  <text x="64" y="759" class="body">When neither prediction can use TabPFN, goals and hobbies guide ranking instead, with the same repetition penalty.</text>
+  <text x="64" y="797" class="body">Mood is a prediction input, not an extra score bonus. Places and air quality help establish what is suitable.</text>
+  <text x="64" y="835" class="small">TabPFN uses selected structured features, not raw provider replies, place names or exact coordinates.</text>
+
+  <rect x="64" y="898" width="1552" height="226" rx="8" fill="#183b33"/>
+  <text x="88" y="943" style="fill:#b9e7c9;font-size:23px;font-weight:700">THE PART THAT MATTERS</text>
+  <text x="88" y="998" style="fill:#fff;font-size:36px;font-weight:700">Pick one. Put the screen away. Return with a story.</text>
+  <text x="88" y="1045" style="fill:#cfdfd9;font-size:23px">Your feedback is saved for future outings. Partial attempts are welcome.</text>
+  <text x="88" y="1086" style="fill:#cfdfd9;font-size:21px">The models use examples and context; their underlying weights are not retrained after each quest.</text>
+</svg>

@@ -1,0 +1,127 @@
+{
+  "synthetic": true,
+  "realModelInference": true,
+  "checkpoint": "v2",
+  "historyRows": 120,
+  "context": {
+    "minutes": 20,
+    "mood": "restless",
+    "energy": "low",
+    "goal": "fitness",
+    "locality": "unknown",
+    "weather": "clear",
+    "note": ""
+  },
+  "ranker": "tabpfn",
+  "targets": {
+    "completed": {
+      "mode": "tabpfn",
+      "rows": 120,
+      "positive_labels": 61,
+      "negative_labels": 59,
+      "checkpoint": "v2",
+      "cache_hit": false,
+      "evaluation": {
+        "method": "chronological_holdout",
+        "training_rows": 96,
+        "holdout_rows": 24,
+        "tabpfn_brier": 0.0588,
+        "baseline_brier": 0.0975,
+        "promoted": true
+      }
+    },
+    "liked": {
+      "mode": "tabpfn",
+      "rows": 109,
+      "positive_labels": 58,
+      "negative_labels": 51,
+      "checkpoint": "v2",
+      "cache_hit": false,
+      "evaluation": {
+        "method": "chronological_holdout",
+        "training_rows": 88,
+        "holdout_rows": 21,
+        "tabpfn_brier": 0.0689,
+        "baseline_brier": 0.1203,
+        "promoted": true
+      }
+    }
+  },
+  "policyVersion": "tabpfn-outcomes-slate-v5",
+  "sources": "No external sources used in this capture.",
+  "writer": "templates",
+  "visibleCandidates": [
+    {
+      "title": "Find Your Walking Rhythm",
+      "type": "movement",
+      "completion": 0.81,
+      "liking": 0.7845,
+      "score": 0.7973,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    },
+    {
+      "title": "Follow the Shady Side",
+      "type": "movement",
+      "completion": 0.81,
+      "liking": 0.7845,
+      "score": 0.7973,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    },
+    {
+      "title": "Walk, Sit, Walk",
+      "type": "movement",
+      "completion": 0.8114,
+      "liking": 0.7801,
+      "score": 0.7957,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    },
+    {
+      "title": "A Conversation-Pace Walk",
+      "type": "movement",
+      "completion": 0.8114,
+      "liking": 0.7801,
+      "score": 0.7957,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    },
+    {
+      "title": "One Different Turn",
+      "type": "movement",
+      "completion": 0.8114,
+      "liking": 0.7801,
+      "score": 0.7957,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    },
+    {
+      "title": "An Easy Finish",
+      "type": "movement",
+      "completion": 0.8114,
+      "liking": 0.7801,
+      "score": 0.7957,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    },
+    {
+      "title": "A Little Reset",
+      "type": "movement",
+      "completion": 0.7889,
+      "liking": 0.7829,
+      "score": 0.7859,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    },
+    {
+      "title": "A Comfortable Stride",
+      "type": "movement",
+      "completion": 0.7889,
+      "liking": 0.7829,
+      "score": 0.7859,
+      "repetitionPenalty": 0,
+      "scoringMode": "outcome-average"
+    }
+  ]
+}

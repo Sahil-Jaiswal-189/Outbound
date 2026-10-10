@@ -32,13 +32,24 @@ const dataUrl = async path => `data:image/png;base64,${(await readFile(path)).to
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1680, height: 1180 }, deviceScaleFactor: 1 });
-  await page.goto(pathToFileURL(resolve(assets, "architecture.svg")).href);
-  const offCanvas = await page.locator("svg text").evaluateAll(elements => elements.filter(text => {
-    const box = text.getBBox();
-    return box.x < 0 || box.y < 0 || box.x + box.width > 1680 || box.y + box.height > 1180;
-  }).map(text => text.textContent));
-  assert.deepEqual(offCanvas, [], "Diagram labels must fit inside the figure");
-  await page.screenshot({ path: join(assets, "architecture.png") });
+  for (const diagram of ["architecture", "how-it-works"]) {
+    await page.goto(pathToFileURL(resolve(assets, `${diagram}.svg`)).href);
+    const offCanvas = await page.locator("svg text").evaluateAll(elements => elements.filter(text => {
+      const box = text.getBBox();
+      return box.x < 0 || box.y < 0 || box.x + box.width > 1680 || box.y + box.height > 1180;
+    }).map(text => text.textContent));
+    assert.deepEqual(offCanvas, [], "Diagram labels must fit inside the figure");
+    const outsidePanel = await page.locator("g[data-panel]").evaluateAll(panels => panels.flatMap(panel => {
+      const bounds = panel.querySelector("rect").getBBox();
+      return [...panel.querySelectorAll("text")].filter(text => {
+        const box = text.getBBox();
+        return box.x < bounds.x || box.y < bounds.y || box.x + box.width > bounds.x + bounds.width
+          || box.y + box.height > bounds.y + bounds.height;
+      }).map(text => text.textContent);
+    }));
+    assert.deepEqual(outsidePanel, [], "Diagram labels must fit inside their panels");
+    await page.screenshot({ path: join(assets, `${diagram}.png`) });
+  }
 
   await page.goto("about:blank");
   const screens = await Promise.all(["choose-mobile.png", "field-mobile.png", "reflection-mobile.png"].map(file => dataUrl(join(assets, file))));
