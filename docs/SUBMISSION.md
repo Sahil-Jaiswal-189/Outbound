@@ -143,7 +143,7 @@ Our code combines these facts with your settings to remove unsuitable activities
 
 - **Speed:** cold models and public map services can still delay recommendations despite caching. Shortening that wait is the next priority.
 - **Place details:** access and opening hours remain unverified.
-- **Completion:** self-reported, not location-tracked. This is not a medical or safety tool.
+- **Completion:** self-reported, not location-tracked.
 
 Those few outings were a starting point. The next step is to test with more people: can they choose comfortably, leave the app alone, and return with useful feedback?
 
