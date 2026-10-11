@@ -1,175 +1,192 @@
 ---
 title: "Outbound 🌱 An AI Quest App That Wants You to Close It"
-published: false
-tags: devchallenge, hf26challenge, ai, opensource
+published: true
+description: "Three outdoor quests, one small decision, and an AI system designed to get out of your way."
+tags: devchallenge, hf26challenge, ai, hacktoberfest
 ---
 
-*This is a submission for the [Hacktoberfest Open-Source AI Challenge Week 1: Touch Grass](https://dev.to/challenges/hacktoberfest-week1-2026-10-05)*
+*This is a submission for the [Hacktoberfest Open-Source AI Challenge Week 1: Touch Grass](https://dev.to/challenges/hacktoberfest-week1-2026-10-05).*
 
 ## What I Built
 
 🌱 **What if an app's best outcome was that you stopped using it?**
 
-That is the idea behind **Outbound**: a small, gamified outdoor quest app built around local, open-weight AI. Not an infinite feed. Not another chatbot to keep talking to. Just a little help choosing something worth doing in the real world.
+You have fifteen minutes. You have been looking at a screen for too long. A workout sounds like too much, and "just go for a walk" does not quite give you a reason to start.
 
+That gap between wanting to do something and choosing something is the problem I wanted to work on. A feed offers the next thing to look at. I wanted to offer the next thing to do.
 
+I built **Outbound**, a gamified outdoor quest app using open-weight models that can run locally. It suggests three activities using your settings, interests, past feedback, and available local information. Choose one, put the phone away, and return with a short reflection.
 
-![Outbound homepage with outing settings and three quest options](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/pb2kf64h7bkdiic50i7s.png)
-*Figure 1. A starting point, not a destination: the actual Outbound interface with automated demo state.*
+**The idea is not to make leaving the screen another demanding task. It is to make the next step small enough to take.**
 
-You start with interests, goals, things you dislike, and a few practical reminders. Before an outing, you tell Outbound how much time you have, how you feel, your energy level, and optionally your starting point.
+![Outbound's homepage showing outing settings and three selectable outdoor quests](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/6ick4ztl9jpjf156sj4g.png)
+*Figure 1. A decision, not a feed. Actual app interface using automated demo data.*
 
-🎯 **It gives you three possibilities. You choose one. Then you can put the phone away.**
+The experience is deliberately small:
 
-![Three illustrative quests: a short walk, a useful errand and an outdoor sketch](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/84ohoz9ttk85khm0o7vc.png)
-*AI-generated concept illustration, not an app screenshot or a record of real users.*
+- **Your profile:** editable interests, goals, dislikes, and comfort levels.
+- **Today's context:** time, mood, energy, and an optional starting point.
+- **Three choices, not a feed:** Easy Win, Useful Quest, and Stretch Quest, selected from **120 activities**. Notice something new on a familiar walk, sketch outdoors, or check a detail for tomorrow's errand.
+- **Useful feedback:** mark complete, partial, or skipped, optionally rate it, and leave a note. "Bring water next time" can become a reminder for a similar activity.
+- **Gentle rewards:** badges, streaks, and sounds acknowledge participation. **Partial Counts** is a badge too; showing up need not go perfectly.
+- **Optional voice:** ElevenLabs reads quests, transcribes notes, and speaks encouragement after your reflection.
 
-The activities range from gentle movement and noticing nature to tiny creative exercises, low-pressure social activities, and useful errands. There are **120 distinct catalog activities**, not 120 rewrites of “go for a walk.”
+![Three mobile app views showing quest selection, an outing timer, and a short reflection form](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/gu6agjioxk4ckiaz9tif.png)
+*Figure 2. Choose, go, reflect. These screenshots use controlled UI fixtures.*
 
-![Three mobile views showing quest selection, the field timer and reflection](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/ax27ca6lqlx59fvjgtb7.png)
-*Figure 2. Choose → go do it → reflect. These are automated UI fixtures, not photographs or evidence of a completed outdoor trip.*
+This is for someone between work, study, or chores who wants a little movement, curiosity, or confidence, but needs a reason to start.
 
-
-On return, you can mark the quest complete, partial, or skipped; optionally say whether it felt worthwhile; and leave a short note. “Bring water next time” can become a future preparation reminder. Missing ratings stay missing rather than becoming dislikes.
-
-🏅 **The rewards acknowledge participation.** Badges include First Step, Three Real Days, Curiosity Engine, Screenbreaker, and Partial Counts. Local sounds celebrate progress. Optional ElevenLabs read-aloud and reward speech add a friendly voice, while typed notes and browser speech remain available.
-
-This is for the person who thinks, “I should get outside,” but gets stuck choosing what to do. Someone with fifteen minutes and low energy deserves a useful option too.
-
-> 📱 The design goal is not more time in Outbound. It is less friction before doing something outside.
+> 📱 The design goal: spend less effort deciding on the screen, and more time doing something outside.
 
 ## Demo
 
 🚀 **[Try Outbound](https://outbound-taqn.onrender.com/)**
 
-To explore the full decision trail without affecting your own progress, open **Recommendation lab**, seed the separate demo workspace, and run a recommendation. The lab distinguishes synthetic examples from personal outcomes.
+1. Set a few interests and choose today's time and energy. Share a starting point only if you want nearby-place suggestions.
+2. Generate three quests, choose one, and start the quiet outing timer. Put the phone away; there is no feed to follow.
+3. Return and save a short reflection. Completed, partial, and skipped are all valid feedback.
 
+🔍 **To inspect a decision:** Recommendation lab → Seed demo data → Run demo recommendation.
 
-![A named-place quest with walking time, activity time and a return reserve](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/icy8fyk5lk5jjx614yuz.png)
-*Figure 3. Named destinations include travel, activity time, and a reserve. “Neighbourhood Green” and the displayed source readings are controlled visual-test fixtures, not live place-discovery evidence.*
+- See sources, rejected activities, predictions, and selection scores.
+- Synthetic demo history stays separate from your personal progress.
+- A new profile starts with preference-based ranking, not learned personalization.
 
-🗺️ **A destination is earned by the data, not invented by the language model.**
+### A Small Outing Still Has to Fit
 
-For an illustrative 30-minute outing, a six-minute walking round trip, twelve-minute sketch, and two-minute reserve total twenty minutes. That fits. A garden with a 28-minute round trip does not fit a fifteen-minute outing, however attractive the model could make it sound.
+For an **illustrative** fifteen-minute outing when you feel tired:
 
-No precise starting point, no usable route, insufficient time, or after-dark exclusions? Outbound can offer suitable location-independent catalog activities instead. It does not attach a made-up garden or guess a walking time.
+- **Too far:** a garden with a twenty-eight-minute walking round trip is ruled out before prediction.
+- **Too demanding:** low-energy settings exclude strenuous activities.
+- **Still possible:** a short, familiar walk might remain.
 
-⏳ This is a CPU-hosted prototype. Cold models and busy public map services can make generation slow. Opening hours, facilities, and access remain unverified; check conditions yourself before setting out.
+A confident description cannot make the garden closer.
+
+![A named-place quest displaying walking time, activity time, and a reserve for the outing](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/5u1809ws6lu45ibl93ri.png)
+*Figure 3. Travel belongs in the time budget. "Neighbourhood Green" and the source readings here are visual-test fixtures, not live discovery evidence.*
+
+That distinction matters: **Outbound should give you a usable reason to leave, not a convincing reason that falls apart at the door.**
 
 ## Code
 
-💻 **[Source, setup, and architecture on GitHub](https://github.com/Sahil-Jaiswal-189/Outbound)**
+- 💻 **[Source code](https://github.com/Sahil-Jaiswal-189/Outbound)**
+- **[Setup and prerequisites](https://github.com/Sahil-Jaiswal-189/Outbound#prerequisites)**
+- **[Detailed architecture](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/ARCHITECTURE.md)**
 
-```bash
-git clone https://github.com/Sahil-Jaiswal-189/Outbound.git
-cd Outbound
-npm install
-cp .env.example .env
-npm start
-```
-
-This starts the local web app. The README includes the additional Ollama/TabPFN setup and a single-container option that runs Node, both model services, and SQLite together. Credentials belong in `.env` or the hosting dashboard, not in Git.
+**Stack:** JavaScript, Lucide, and Leaflet in the browser; Node and SQLite in the backend; Python/TabPFN and Ollama/Qwen for inference. Run locally or together in one Docker service.
 
 ## How I Built It
 
-🧩 **Two models, a transparent selection policy, and clear responsibilities.**
+🧩 **The most useful improvement was giving each part one clear job.**
 
+An earlier version added mood and place bonuses on top of predictions. That made the decision harder to explain. I simplified it: **check what fits, predict outcomes, choose three, then add friendly wording.**
 
-![Outbound architecture showing the self-hosted models, SQLite and external fact providers](./assets/architecture.png)
-*Figure 4. Self-hosted inference and storage are separate from external weather, map, route, and optional voice services.*
+![Outbound workflow: build and filter activities, estimate outcomes with TabPFN, select three, add Qwen wording, and save feedback in SQLite](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/c5xmowgdnxfaib53hpid.png)
+*Figure 4. One feedback loop, with a different job at each step. AI-generated diagram checked against the implementation.*
 
-### 🔄 How the Data Moves
+### 1. Facts Decide What Fits
 
-![How Outbound combines your day, real-world facts, and past outings to choose three quests](./assets/how-it-works-visual.png)
-*Figure 5. Filter what fits → predict outcomes → select three → add friendly wording. Feedback returns to SQLite for the next outing.*
+- **Open-Meteo:** weather and modeled air quality.
+- **OpenStreetMap / Overpass:** mapped nearby places.
+- **openrouteservice:** walking-time estimates.
 
-**Not all collected data goes into TabPFN.** It uses selected details such as mood, energy, weather, quest duration and travel time. Air quality, mapped places and profile constraints help build and filter the options; place names and exact coordinates are not model features.
+Our code combines these facts with your settings to remove unsuitable activities **before prediction**. A named destination must fit travel, activity, and return time. Failed lookups are reported; suitable general activities can remain, without inventing a place.
 
-**If neither prediction can use TabPFN:** the scoring step uses goal/hobby preferences minus repetition instead. The filters, variety checks and Qwen's wording step stay the same.
+### 2. TabPFN Asks Whether It Might Work for You
 
+- **Remember:** SQLite stores your profile, outings, and feedback.
+- **Predict:** TabPFN v2 uses past outcomes and selected details, including mood, weather, duration, and effort, to estimate completion and liking separately.
+- **Check:** each outcome must beat a simpler estimate on history not used for fitting. Until enough usable history exists, goals and hobbies guide ranking.
+- **Update:** feedback adds examples, not a new round of model-weight training.
 
-### 🗃️ SQLite remembers; it does not predict
+**Finishing something and enjoying it are different signals. The model has to earn its place.**
 
-SQLite stores the editable profile, context snapshots, saved recommendations, attempts, feedback, source cache, and structured events. Feedback refers to the saved quest rather than accepting replacement facts from the browser.
+### 3. Selection Makes a Choice, Not an Endless Ranking
 
-Unchosen activities are not failures. Started-but-unfinished activities do not silently become training labels. Partial attempts keep their own status, even though the current completion classifier specifically predicts full completion.
+> **Model-based score = average of completion and liking estimates − repetition penalty.**
 
-### 🌦️ Specialists provide facts
+- **Partial model use:** an outcome that fails the check keeps its simpler estimate.
+- **No validated model:** use goal/hobby fit minus repetition instead.
+- **Variety:** avoid duplicate activities and destinations, seek different categories, and occasionally explore a less-tried category.
 
-The Node backend calls structured sources directly:
+**These are selection rules, not another AI model.**
 
-- **Open-Meteo:** outing weather and modeled air quality.
-- **OpenStreetMap / Overpass:** named nearby places.
-- **openrouteservice:** pedestrian round-trip estimates and area names.
+### 4. Qwen Makes the Wording Friendly
 
-Leaflet supplies the map interface. Overpass discovers places; ORS checks routes. Qwen does neither. Source calls are deterministic adapters, not an autonomous tool-calling agent.
+- **Wording:** Qwen2.5:3b runs through Ollama after selection, writing titles, reflection prompts, and later encouragement.
+- **Personal context:** profile details and relevant notes, not per-user fine-tuning.
+- **Facts:** destinations, timings, instructions, and evidence-based explanations stay backend-controlled.
+- **Fallback:** failed or invalid model output leaves the template quests usable.
 
-A catalog/place matcher builds appropriate activities at supported destinations. Filters then consider time, effort, preferences, explicit supported constraints, weather, and daylight. A nearby shop alone is not a reason to invent a shopping need.
+**Qwen's job is warmth, not deciding where you should go.**
 
-### 📊 TabPFN estimates outcomes, not destinations
+### What I Have Verified
 
-The local Python service uses **TabPFN v2** to estimate two separate probabilities: full completion and enjoyment. Its thirteen pre-outing features include available time, mood, energy, goal, locality type, weather, activity type, duration, travel, and physical/social effort. Exact coordinates and raw notes are not predictor features.
+- 🔬 **75 automated tests passed** in build verification, covering filtering, separate demo history, repetition, and model-failure fallbacks.
+- **Real local TabPFN inference:** 120 synthetic outings; both outcomes beat simpler estimates on examples held out of fitting.
 
-Cold-start probability estimates use a smoothed category baseline; ranking uses a separate goal/hobby preference fallback until at least one target can use TabPFN. Each target needs enough varied labeled data, including at least thirty earlier training examples and eight later holdout examples. TabPFN is promoted for that target only when its holdout Brier score is lower than the baseline's. One target can use TabPFN while the other remains on the baseline.
+| Prediction | Baseline error | TabPFN error |
+| --- | ---: | ---: |
+| Full completion | 0.0975 | 0.0588 |
+| Liking | 0.1203 | 0.0689 |
 
-🔬 This is a preliminary quality gate, not proof that the app improves fitness or that small-sample probabilities are perfectly calibrated.
+**Reading the table:** Brier scores measure prediction error; lower is better. This small synthetic test demonstrates the working system, **not real-user performance or better habits**.
 
-### 🎲 Selection balances relevance with variety
+![Recommendation lab showing real TabPFN predictions on synthetic history, validation results, and candidate scores](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/tfxgu9wvxljrnh45kvdl.png)
+*Figure 5. Real TabPFN output on synthetic history, with no live sources or Qwen wording. See the [saved results](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/docs/assets/lab-model.evidence.json) and [capture script](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/scripts/capture-model-lab.mjs).*
 
-When at least one prediction uses validated TabPFN, the recommendation engine scores each eligible quest as **half the completion probability + half the liking probability − a repetition penalty**. If only one prediction uses TabPFN, the other uses its baseline estimate. There are no extra mood or place bonuses added afterwards.
+### What Still Needs Work
 
-When neither prediction can use TabPFN, ranking instead uses a separate goal/hobby preference fallback. Final selection creates a diverse slate, avoids recently offered activities when alternatives remain, and occasionally explores a less-tried category in the third slot. Feasible named-place quests are preferred for the first option when available.
+- **Speed:** cold models and public map services can still delay recommendations despite caching. Shortening that wait is the next priority.
+- **Place details:** access and opening hours remain unverified.
+- **Completion:** self-reported, not location-tracked. This is not a medical or safety tool.
 
-That policy is inspectable code, not a separately trained reinforcement-learning model. It records its candidate pools and conditional selection probabilities. The probabilities describe the app's selection, not a causal estimate of what an activity will do for someone.
-
-### 💬 Qwen supplies warmth after the decision
-
-**Qwen2.5:3b runs through Ollama.** It can customize friendly generic titles and reflection prompts after the engine selects activities. Named destination titles, factual steps, timings, and preparation are preserved. Final recommendation reasons are built from saved evidence rather than trusting an LLM-written explanation.
-
-New feedback becomes context for future predictions and relevant reminders. **We do not fine-tune Qwen or TabPFN weights after every quest.**
-
-
-![The recommendation lab showing real local TabPFN predictions, validation and outcome-based scores](./assets/lab-model.png)
-*Figure 6. Real local TabPFN predictions from 120 synthetic outings. Both targets passed the baseline check; the table shows their probabilities and averaged scores. This is a demonstration of the pipeline, not a study of real users.*
-
-### 🛠️ Built to Be Trusted
-
-**A quest should come with evidence, not just reassuring language.** Named destinations need a mapped place, a successful walking estimate, and enough time for the activity and return. When a provider or model is unavailable, Outbound reports it and uses the appropriate cached-data, baseline, or template fallback. Missing information never becomes an invented destination.
-
-**Your progress should survive the app restarting.** The single-container deployment preserves SQLite history and model caches on its persistent disk. Supervisor restarts crashed workers, while the model services stay internal and only the web API is exposed publicly.
-
-✅ **Checked beyond mock responses:** 75 automated tests cover the backend, Python predictor, and desktop/mobile workflows. A separate container smoke test runs real Qwen generation and TabPFN evaluation, kills a worker to check recovery, and verifies that saved history survives a fresh-container redeploy. That container check passed before the latest scoring update and has not been rerun since.
+I have not documented an outdoor trial yet. Can someone choose comfortably, leave the app alone, and return with useful feedback? **That is the next test, and it needs to happen outside.**
 
 ## Why Does Open Innovation Matter?
 
-🔓 **The important freedom is being able to change what the system optimizes for.**
+🔓 **A personal recommendation needs personal feedback. I wanted to control where that feedback goes and how it shapes the next choice.**
 
-I can inspect the feature list, change the scoring weights, swap the predictor or local language model, and examine why a quest was selected. Outbound does not depend on asking a hosted chatbot to make an opaque recommendation and hoping the explanation is true.
+Qwen's open weights, TabPFN's model and code, and the open-source Ollama runtime give me three practical benefits:
 
-🏠 **Local inference keeps the core under my control.** In laptop mode, profile/history storage and model execution stay on the laptop. In the container deployment, they stay on the server I operate rather than being sent to a hosted inference API. Once weights are downloaded, the model computations themselves can run without an internet connection; fresh weather, places, routes, and map tiles still need one.
+- **Control over personal history.** Laptop mode keeps storage and inference on the laptop. The Render demo runs them on its server, not the visitor's phone.
+- **An inspectable decision.** I can compare TabPFN with a simpler estimate, keep the fallback when it wins, and see which path was used.
+- **Local computation.** Downloaded models can compute offline. Fresh weather, places, routes, and tiles need internet; coordinates go to providers. Optional speech text and recordings go to ElevenLabs.
 
-🧪 **Open components let me use different tools for different jobs.** A small-data tabular foundation model estimates outcomes. An explicit policy selects a feasible slate. A local language model supplies wording. Neither model has to pretend to be a database, a map, or a safety authority.
+For this project, that worked better than relying entirely on a hosted chatbot: I can run and test both models without a required hosted-inference fee, and control the selection rules. Closed models can also sit behind careful rules. **Our advantage is ownership of the setup, not universal model superiority.**
 
-💸 **There is no required hosted-model fee per recommendation.** That does not mean the whole app is free to operate: hardware, electricity, hosting, and optional ElevenLabs can cost money.
+The boundaries are important too:
 
-An important distinction: **open-weight does not mean unrestricted licensing**. This Qwen checkpoint uses the [Qwen Research license](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct); the TabPFN v2 checkpoint uses the [Prior Labs License with attribution requirements](https://huggingface.co/Prior-Labs/TabPFN-v2-clf). Ollama is an open-source runtime. ElevenLabs is a separate proprietary, optional service. Coordinates still go to location providers, and enabled voice/transcription sends its payload to ElevenLabs.
+- **Costs:** hosting, hardware, and optional voice are not free.
+- **Model terms:** [Qwen uses the Qwen Research license](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct); [TabPFN v2 uses the Prior Labs License with attribution requirements](https://huggingface.co/Prior-Labs/TabPFN-v2-clf).
+- **Optional proprietary service:** ElevenLabs is separate from the local inference setup.
 
-That is where this approach fits better than a closed inference-only integration for my project: **control of the decision rules, deployment, and inspectable fallback behavior**, not a claim that these models outperform every closed model.
-
-## My Agent Session
-
-🤝 I built Outbound with an AI coding assistant, iterating on the catalog, local prediction service, source grounding, audio interactions, deployment, and tests. I do not have a shareable DevRelay recording, so there is no session embed here. The source and architecture document show the implementation; they are not a substitute for a recorded session.
+The freedom I care about is not making the app bigger. **It is being able to make the app ask less of you.**
 
 ## Prize Categories
 
-- 📊 **Best Use of TabPFN:** local completion/enjoyment prediction, per-target chronological validation, and explicit baseline/hybrid/model modes.
-- 🎙️ **Best Use of ElevenLabs:** optional quest read-aloud, friendly reward speech, and reflection transcription.
-- 🚀 **Best Use of Render:** the supplied public demo is hosted on Render; the repository also packages the complete self-hosted runtime in one Docker service. The local container checks are not a claim about the currently deployed service's model readiness.
-- 💻 **Best Use of GitHub Copilot:** used GitHub Copilot during the development of Outbound.
+### 📊 Best Use of TabPFN
 
+- **Use:** predict completion and liking from outing feedback; check each outcome against a simpler alternative before model-based ranking.
+- **Purpose:** recommend what someone might do and enjoy, not what keeps them clicking.
+- **Evidence:** the lab, real-model screenshot, and saved results make the process inspectable.
 
-🌿 **The ambition is small on purpose: make one real-world action easier to choose today.**
+### 🎙️ Best Use of ElevenLabs
 
-No invented field-test story. No claim that badges solve habits. The next meaningful evaluation is taking the app outside and learning from genuine outcomes.
+- **Use:** narrate the selected quest, transcribe a recorded reflection, and speak Qwen's encouragement after the note is saved.
+- **Purpose:** less reading and typing, without a conversation running throughout the outing.
+- **Alternatives:** typed notes and browser speech remain available.
 
-*Visual credits: the app's park-path photograph is by [Tina Devidze on Unsplash](https://unsplash.com/photos/a-path-winds-through-a-sunny-green-park-lh_MesNhkbI), under the [Unsplash License](https://unsplash.com/license). Screenshots show the actual app using automated fixtures; architecture and workflow figures were assembled for this write-up. The simple data-flow diagram is AI-generated and checked against the implementation.*
+### 🚀 Best Use of Render
+
+- **Use:** host the public demo with a single-service Docker setup for the app, Qwen, and TabPFN.
+- **Purpose:** let people try Outbound without installing models. An attached persistent disk preserves history and model downloads.
+- **Deployment:** only the web app is exposed publicly; model services stay internal. Configuration and setup instructions are in the repository.
+
+---
+
+🌿 **Outbound does not need you to become an outdoors person overnight.**
+
+It needs to make one small outing easier to choose today. Whether it succeeds will be decided outside, not by how long someone stays in the app.
+
+*This project and write-up were developed with AI assistance. Screenshots use controlled demo state; the prediction capture uses synthetic history. The app's park photograph is by [Tina Devidze on Unsplash](https://unsplash.com/photos/a-path-winds-through-a-sunny-green-park-lh_MesNhkbI), under the [Unsplash License](https://unsplash.com/license). Model and source-provider credits appear above and in the repository.*

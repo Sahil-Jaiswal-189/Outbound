@@ -4,7 +4,7 @@
 
 Outbound recommends small real-world activities instead of a feed. Set your interests, goals, dislikes and available time, choose one of three quests, go outside, and return with a short reflection.
 
-[Live demo](https://outbound-taqn.onrender.com/) | [Challenge submission draft](./docs/SUBMISSION.md) | [Detailed architecture](./ARCHITECTURE.md)
+[Live demo](https://outbound-taqn.onrender.com/) | [Published DEV article](https://dev.to/sahil_jaiswal_6affec34584/outbound-an-ai-quest-app-that-wants-you-to-close-it-2e9b) | [Submission Markdown](./docs/SUBMISSION.md) | [Detailed architecture](./ARCHITECTURE.md)
 
 ![Outbound's desktop interface](./docs/assets/home.png)
 
@@ -297,7 +297,7 @@ node scripts/build-post-assets.mjs
 
 The script copies verified UI screenshots and renders the architecture SVG and mobile workflow figure into `docs/assets/`; it does not alter application data.
 
-Figure 6 in the submission uses a separate real-model capture: `node scripts/capture-model-lab.mjs`. It runs CPU TabPFN v2 on 120 synthetic outings in an in-memory workspace and saves the screenshot plus validation/score evidence. Local Python dependencies and Chromium are required; the first run downloads the checkpoint. It does not modify personal history or prove real-world effectiveness. See [publishing instructions](./docs/PUBLISHING.md) for details.
+Figure 5 in the submission uses a separate real-model capture: `node scripts/capture-model-lab.mjs`. It runs CPU TabPFN v2 on 120 synthetic outings in an in-memory workspace and saves the screenshot plus validation/score evidence. Local Python dependencies and Chromium are required; the first run downloads the checkpoint. It does not modify personal history or prove real-world effectiveness. See [publishing instructions](./docs/PUBLISHING.md) for details.
 
 ## Open Components and Limits
 
@@ -337,8 +337,8 @@ tests/
   container-smoke.mjs     Real single-container inference and redeploy checks
 deploy/                  Supervisor, model bootstrap, health check and Render env reference
 docs/
-  SUBMISSION.md          Visual DEV submission draft
-  PUBLISHING.md          Image/demo/session publication checklist
+  SUBMISSION.md          Markdown source for the published DEV submission
+  PUBLISHING.md          Article update, image and demo checklist
   assets/                Architecture source and generated screenshots
 scripts/
   build-post-assets.mjs   Rebuild publication figures from browser test artifacts
