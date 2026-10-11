@@ -297,7 +297,7 @@ node scripts/build-post-assets.mjs
 
 The script copies verified UI screenshots and renders the architecture SVG and mobile workflow figure into `docs/assets/`; it does not alter application data.
 
-Figure 5 in the submission uses a separate real-model capture: `node scripts/capture-model-lab.mjs`. It runs CPU TabPFN v2 on 120 synthetic outings in an in-memory workspace and saves the screenshot plus validation/score evidence. Local Python dependencies and Chromium are required; the first run downloads the checkpoint. It does not modify personal history or prove real-world effectiveness. See [publishing instructions](./docs/PUBLISHING.md) for details.
+Figure 5 in the submission uses a separate real-model capture: `node scripts/capture-model-lab.mjs`. It runs CPU TabPFN v2 on 120 synthetic outings in an in-memory workspace and saves the screenshot plus validation/score evidence. Local Python dependencies and Chromium are required; the first run downloads the checkpoint. It does not modify personal history or prove real-world effectiveness.
 
 ## Open Components and Limits
 
@@ -338,7 +338,6 @@ tests/
 deploy/                  Supervisor, model bootstrap, health check and Render env reference
 docs/
   SUBMISSION.md          Markdown source for the published DEV submission
-  PUBLISHING.md          Article update, image and demo checklist
   assets/                Architecture source and generated screenshots
 scripts/
   build-post-assets.mjs   Rebuild publication figures from browser test artifacts
