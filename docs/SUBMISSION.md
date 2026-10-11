@@ -63,15 +63,15 @@ For an **illustrative** fifteen-minute outing when you feel tired:
 A confident description cannot make the garden closer.
 
 ![A named-place quest displaying walking time, activity time, and a reserve for the outing](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/5u1809ws6lu45ibl93ri.png)
-*Figure 3. Travel belongs in the time budget. "Neighbourhood Green" and the source readings here are visual-test fixtures, not live discovery evidence.*
+*Figure 3. An illustrative quest showing how walking time, activity time, and a return buffer fit within your available time.*
 
 That distinction matters: **Outbound should give you a usable reason to leave, not a convincing reason that falls apart at the door.**
 
 ## Code
 
 - 💻 **[Source code](https://github.com/Sahil-Jaiswal-189/Outbound)**
-- **[Setup and prerequisites](https://github.com/Sahil-Jaiswal-189/Outbound#prerequisites)**
-- **[Detailed architecture](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/ARCHITECTURE.md)**
+- 🛠️ **[Setup and prerequisites](https://github.com/Sahil-Jaiswal-189/Outbound#prerequisites)**
+- 🧩 **[Detailed architecture](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/ARCHITECTURE.md)**
 
 **Stack:** JavaScript, Lucide, and Leaflet in the browser; Node and SQLite in the backend; Python/TabPFN and Ollama/Qwen for inference. Run locally or together in one Docker service.
 
@@ -135,13 +135,17 @@ Our code combines these facts with your settings to remove unsuitable activities
 ![Recommendation lab showing real TabPFN predictions on synthetic history, validation results, and candidate scores](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/tfxgu9wvxljrnh45kvdl.png)
 *Figure 5. Real TabPFN output on synthetic history, with no live sources or Qwen wording. See the [saved results](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/docs/assets/lab-model.evidence.json) and [capture script](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/scripts/capture-model-lab.mjs).*
 
+### What I Learned Outside
+
+**I used Outbound during development, trying a few quests that took me to a local shop and a nearby café.** The early recommendations felt too generic, so I improved the real-world context and expanded the activity catalog. I also added a timer, feedback, badges, and optional voice to make the experience more engaging. These were informal personal trials, not a study of long-term habit change.
+
 ### What Still Needs Work
 
 - **Speed:** cold models and public map services can still delay recommendations despite caching. Shortening that wait is the next priority.
 - **Place details:** access and opening hours remain unverified.
 - **Completion:** self-reported, not location-tracked. This is not a medical or safety tool.
 
-I have not documented an outdoor trial yet. Can someone choose comfortably, leave the app alone, and return with useful feedback? **That is the next test, and it needs to happen outside.**
+Those few outings were a starting point. The next step is to test with more people: can they choose comfortably, leave the app alone, and return with useful feedback?
 
 ## Why Does Open Innovation Matter?
 
