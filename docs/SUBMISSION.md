@@ -19,8 +19,8 @@ I built **Outbound**, a gamified outdoor quest app using open-weight models that
 
 **The idea is not to make leaving the screen another demanding task. It is to make the next step small enough to take.**
 
-![Outbound's homepage showing outing settings and three selectable outdoor quests](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/6ick4ztl9jpjf156sj4g.png)
-*Figure 1. A decision, not a feed. Actual app interface using automated demo data.*
+![Outbound's homepage with outing settings and three quests](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/6ick4ztl9jpjf156sj4g.png)
+*Figure 1. Outbound's homepage: set your available time and how you feel, then choose one of three quests.*
 
 The experience is deliberately small:
 
@@ -31,8 +31,8 @@ The experience is deliberately small:
 - **Gentle rewards:** badges, streaks, and sounds acknowledge participation. **Partial Counts** is a badge too; showing up need not go perfectly.
 - **Optional voice:** ElevenLabs reads quests, transcribes notes, and speaks encouragement after your reflection.
 
-![Three mobile app views showing quest selection, an outing timer, and a short reflection form](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/gu6agjioxk4ckiaz9tif.png)
-*Figure 2. Choose, go, reflect. These screenshots use controlled UI fixtures.*
+![Mobile screens for choosing a quest, timing an outing, and saving feedback](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/gu6agjioxk4ckiaz9tif.png)
+*Figure 2. Choose a quest, head outside, and save a short reflection when you return.*
 
 This is for someone between work, study, or chores who wants a little movement, curiosity, or confidence, but needs a reason to start.
 
@@ -62,8 +62,8 @@ For an **illustrative** fifteen-minute outing when you feel tired:
 
 A confident description cannot make the garden closer.
 
-![A named-place quest displaying walking time, activity time, and a reserve for the outing](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/5u1809ws6lu45ibl93ri.png)
-*Figure 3. An illustrative quest showing how walking time, activity time, and a return buffer fit within your available time.*
+![An example quest with a destination and time breakdown](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/5u1809ws6lu45ibl93ri.png)
+*Figure 3. An example quest with time for walking, the activity, and a return buffer.*
 
 That distinction matters: **Outbound should give you a usable reason to leave, not a convincing reason that falls apart at the door.**
 
@@ -81,8 +81,8 @@ That distinction matters: **Outbound should give you a usable reason to leave, n
 
 An earlier version added mood and place bonuses on top of predictions. That made the decision harder to explain. I simplified it: **check what fits, predict outcomes, choose three, then add friendly wording.**
 
-![Outbound workflow: build and filter activities, estimate outcomes with TabPFN, select three, add Qwen wording, and save feedback in SQLite](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/c5xmowgdnxfaib53hpid.png)
-*Figure 4. One feedback loop, with a different job at each step. AI-generated diagram checked against the implementation.*
+![A diagram of how Outbound chooses quests and learns from feedback](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/c5xmowgdnxfaib53hpid.png)
+*Figure 4. How Outbound checks what fits, predicts outcomes, and chooses three quests. AI-generated diagram.*
 
 ### 1. Facts Decide What Fits
 
@@ -132,8 +132,10 @@ Our code combines these facts with your settings to remove unsuitable activities
 
 **Reading the table:** Brier scores measure prediction error; lower is better. This small synthetic test demonstrates the working system, **not real-user performance or better habits**.
 
-![Recommendation lab showing real TabPFN predictions on synthetic history, validation results, and candidate scores](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/tfxgu9wvxljrnh45kvdl.png)
-*Figure 5. Real TabPFN output on synthetic history, with no live sources or Qwen wording. See the [saved results](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/docs/assets/lab-model.evidence.json) and [capture script](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/scripts/capture-model-lab.mjs).*
+![The recommendation lab showing TabPFN predictions and quest scores](https://dev-to-uploads.s3.us-east-2.amazonaws.com/uploads/articles/tfxgu9wvxljrnh45kvdl.png)
+*Figure 5. TabPFN's predictions in the recommendation lab, using simulated outings.*
+
+[View the results](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/docs/assets/lab-model.evidence.json) | [Reproduce this screenshot](https://github.com/Sahil-Jaiswal-189/Outbound/blob/main/scripts/capture-model-lab.mjs)
 
 ### What I Learned Outside
 
